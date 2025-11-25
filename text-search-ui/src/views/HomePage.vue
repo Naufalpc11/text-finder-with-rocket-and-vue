@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed } from "vue";
+import IconTextFinder from '../assets/Icontextfinder.png';
 
 // State management
 const uploadedFiles = ref([]);
@@ -174,7 +175,12 @@ const canSearch = computed(() => uploadedFiles.value.length >= 2 && searchWord1.
   <div class="max-w-7xl mx-auto">
     <!-- Header -->
     <div class="text-center mb-8 animate-fade-in">
-      <h1 class="text-4xl md:text-5xl font-bold text-white mb-2 text-shadow-lg">Text Search Tool</h1>
+      <div class="flex items-center justify-center gap-4 mb-2">
+        <div class="w-12 h-12 md:w-16 md:h-16 bg-white rounded-full p-2 shadow-lg">
+          <img :src="IconTextFinder" alt="Text Finder Icon" class="w-full h-full object-contain" />
+        </div>
+        <h1 class="text-4xl md:text-5xl font-bold text-white text-shadow-lg">Text Search Tool</h1>
+      </div>
       <p class="text-white/90 text-lg">Upload 2-6 file .txt dan cari 2 kata secara bersamaan</p>
     </div>
 

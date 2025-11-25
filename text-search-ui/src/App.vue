@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import HomePage from './views/HomePage.vue'
+import IconTextFinder from './assets/Icontextfinder.png'
 
 const isLoading = ref(true)
 
@@ -28,8 +29,8 @@ onMounted(() => {
           </div>
           <!-- Logo -->
           <div class="relative z-10 flex items-center justify-center">
-            <div class="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-2xl animate-pulse-slow">
-              <span class="text-5xl">🔍</span>
+            <div class="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-2xl animate-pulse-slow p-3">
+              <img :src="IconTextFinder" alt="Text Finder Icon" class="w-full h-full object-contain" />
             </div>
           </div>
         </div>
