@@ -1,27 +1,33 @@
+
 #[macro_use]
 extern crate rocket;
 
 use rocket::{Build, Rocket, State};
 use rocket::serde::{Deserialize, Serialize, json::Json};
+use rocket::http::Status;
+use rocket::response::status;
 use rocket_cors::{AllowedOrigins, CorsOptions};
 use rayon::prelude::*;
 use std::collections::HashMap;
-use std::sync::RwLock;
+use std::sync::{
+    RwLock,
+    atomic::{AtomicUsize, Ordering},
+};
 
 type DocId = usize;
 
-// =================== MODEL & STATE ===================
+
 
 #[derive(Debug, Clone)]
 struct Document {
     id: DocId,
     name: String,
     content: String,
-    // index kata -> jumlah kemunculan di dokumen ini
+    
     word_counts: HashMap<String, usize>,
 }
 
-// dipakai untuk list dokumen ke frontend
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(crate = "rocket::serde")]
 struct DocumentInfo {
@@ -29,7 +35,7 @@ struct DocumentInfo {
     name: String,
 }
 
-// payload upload dari frontend
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(crate = "rocket::serde")]
 struct UploadedFile {
@@ -37,8 +43,10 @@ struct UploadedFile {
     content: String,
 }
 
+
 struct AppState {
     docs: RwLock<Vec<Document>>,
+    next_id: AtomicUsize, 
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -48,15 +56,15 @@ struct UploadResponse {
     doc_ids: Vec<DocId>,
 }
 
-// payload search dari frontend
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(crate = "rocket::serde")]
 struct SearchRequest {
-    // misal ["kami", "mahasiswa"]
+    
     words: Vec<String>,
 }
 
-// hasil pencarian per dokumen
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(crate = "rocket::serde")]
 struct PerDocCount {
@@ -65,7 +73,7 @@ struct PerDocCount {
     count: usize,
 }
 
-// hasil pencarian per kata
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(crate = "rocket::serde")]
 struct WordResult {
@@ -80,9 +88,25 @@ struct SearchResponse {
     results: Vec<WordResult>,
 }
 
-// =================== FUNGSI FP: TOKEN & INDEX ===================
 
-// normalisasi satu token: buang tanda baca, jadi lowercase
+#[derive(Debug, Clone, Serialize)]
+#[serde(crate = "rocket::serde")]
+struct DeleteResponse {
+    success: bool,
+    remaining: usize,
+}
+
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(crate = "rocket::serde")]
+struct DeleteAllResponse {
+    success: bool,
+    remaining: usize,
+}
+
+
+
+
 fn normalize_token(token: &str) -> String {
     token
         .chars()
@@ -91,7 +115,7 @@ fn normalize_token(token: &str) -> String {
         .to_lowercase()
 }
 
-// split text jadi list kata yang sudah dinormalisasi
+
 fn tokenize(text: &str) -> Vec<String> {
     text.split_whitespace()
         .map(normalize_token)
@@ -99,65 +123,142 @@ fn tokenize(text: &str) -> Vec<String> {
         .collect()
 }
 
-// bangun index kata -> count untuk satu dokumen
+
+
 fn build_word_counts(text: &str) -> HashMap<String, usize> {
-    let mut counts = HashMap::new();
-    for w in tokenize(text) {
-        *counts.entry(w).or_insert(0) += 1;
-    }
-    counts
+    tokenize(text)
+        .into_iter()
+        .fold(HashMap::new(), |mut acc, word| {
+            *acc.entry(word).or_insert(0) += 1;
+            acc
+        })
 }
 
-// fungsi pure: cari satu kata di semua dokumen
+
+fn count_total_occurrences(per_doc: &[PerDocCount]) -> usize {
+    per_doc.iter().map(|pd| pd.count).sum()
+}
+
+
+fn filter_docs_with_word<'a>(docs: &'a [Document], word: &str) -> Vec<&'a Document> {
+    docs.iter()
+        .filter(|doc| doc.word_counts.contains_key(word))
+        .collect()
+}
+
+
+fn count_word_recursive(docs: &[Document], word: &str, index: usize, acc: usize) -> usize {
+    if index >= docs.len() {
+        return acc;
+    }
+    
+    let count = docs[index]
+        .word_counts
+        .get(word)
+        .copied()
+        .unwrap_or(0);
+    
+    count_word_recursive(docs, word, index + 1, acc + count)
+}
+
+
+fn calculate_doc_stats(docs: &[Document]) -> (usize, usize, f64) {
+    let total_docs = docs.len();
+    let total_words: usize = docs
+        .iter()
+        .map(|doc| doc.word_counts.values().sum::<usize>())
+        .sum();
+    
+    let avg_words = if total_docs > 0 {
+        total_words as f64 / total_docs as f64
+    } else {
+        0.0
+    };
+    
+    (total_docs, total_words, avg_words)
+}
+
+
 fn search_single_word(docs: &[Document], raw_word: &str) -> WordResult {
     let word = normalize_token(raw_word);
-    let mut per_doc = Vec::new();
-    let mut total = 0;
-
-    for doc in docs {
-        if let Some(&count) = doc.word_counts.get(&word) {
-            if count > 0 {
-                total += count;
-                per_doc.push(PerDocCount {
-                    doc_id: doc.id,
-                    doc_name: doc.name.clone(),
-                    count,
-                });
-            }
-        }
-    }
+    
+    
+    let per_doc: Vec<PerDocCount> = docs
+        .iter()
+        .filter_map(|doc| {
+            doc.word_counts.get(&word).and_then(|&count| {
+                if count > 0 {
+                    Some(PerDocCount {
+                        doc_id: doc.id,
+                        doc_name: doc.name.clone(),
+                        count,
+                    })
+                } else {
+                    None
+                }
+            })
+        })
+        .collect();
+    
+    
+    let total_count = per_doc.iter().map(|pd| pd.count).sum();
 
     WordResult {
         word,
-        total_count: total,
+        total_count,
         per_doc,
     }
 }
 
-// =================== ROUTES ===================
+
+
+
 
 #[post("/upload", format = "json", data = "<files>")]
 async fn upload_files(
     state: &State<AppState>,
     files: Json<Vec<UploadedFile>>,
 ) -> Json<UploadResponse> {
+    
+    
+    let processed_docs: Vec<(String, String, HashMap<String, usize>)> = if files.len() >= 2 {
+        
+        files
+            .par_iter()
+            .map(|f| {
+                let word_counts = build_word_counts(&f.content);
+                (f.name.clone(), f.content.clone(), word_counts)
+            })
+            .collect()
+    } else {
+        
+        files
+            .iter()
+            .map(|f| {
+                let word_counts = build_word_counts(&f.content);
+                (f.name.clone(), f.content.clone(), word_counts)
+            })
+            .collect()
+    };
+
+    
     let mut docs_guard = state.docs.write().expect("RwLock poisoned");
-    let mut new_ids = Vec::new();
-
-    for f in files.iter() {
-        let id = docs_guard.len();
-        let word_counts = build_word_counts(&f.content);
-
-        let doc = Document {
-            id,
-            name: f.name.clone(),
-            content: f.content.clone(),
-            word_counts,
-        };
-
-        docs_guard.push(doc);
-        new_ids.push(id);
-    }
+    
+    
+    let new_ids: Vec<DocId> = processed_docs
+        .into_iter()
+        .map(|(name, content, word_counts)| {
+            let id = state.next_id.fetch_add(1, Ordering::Relaxed);
+            let doc = Document {
+                id,
+                name,
+                content,
+                word_counts,
+            };
+            docs_guard.push(doc);
+            id
+        })
+        .collect();
 
     Json(UploadResponse {
         total_files: docs_guard.len(),
@@ -165,9 +266,12 @@ async fn upload_files(
     })
 }
 
+
 #[get("/docs")]
 fn list_docs(state: &State<AppState>) -> Json<Vec<DocumentInfo>> {
     let docs_guard = state.docs.read().expect("RwLock poisoned");
+    
+    
     let list = docs_guard
         .iter()
         .map(|d| DocumentInfo {
@@ -175,14 +279,28 @@ fn list_docs(state: &State<AppState>) -> Json<Vec<DocumentInfo>> {
             name: d.name.clone(),
         })
         .collect();
+    
     Json(list)
 }
 
-// ========== INI BAGIAN SEARCH + MULTI-PROCESSING ==========
+
+#[get("/stats")]
+fn get_stats(state: &State<AppState>) -> Json<serde_json::Value> {
+    let docs_guard = state.docs.read().expect("RwLock poisoned");
+    let (total_docs, total_words, avg_words) = calculate_doc_stats(&docs_guard);
+    
+    Json(serde_json::json!({
+        "total_documents": total_docs,
+        "total_words": total_words,
+        "average_words_per_doc": avg_words,
+    }))
+}
+
+
 
 #[post("/search", format = "json", data = "<req>")]
 fn search(state: &State<AppState>, req: Json<SearchRequest>) -> Json<SearchResponse> {
-    // buang spasi kosong dsb
+    
     let words: Vec<String> = req
         .words
         .iter()
@@ -192,16 +310,20 @@ fn search(state: &State<AppState>, req: Json<SearchRequest>) -> Json<SearchRespo
 
     let docs_guard = state.docs.read().expect("RwLock poisoned");
 
+    
+    
+    
     let results: Vec<WordResult> = if words.len() <= 1 {
-        // -------- 1 kata -> TIDAK parallel (single thread) --------
+        
         words
             .iter()
             .map(|w| search_single_word(&docs_guard, w))
             .collect()
     } else {
-        // -------- >= 2 kata -> parallel, pakai Rayon (multi-thread) --------
+        
+        
         words
-            .par_iter() // <- di sini multi-thread jalan
+            .par_iter()
             .map(|w| search_single_word(&docs_guard, w))
             .collect()
     };
@@ -209,7 +331,48 @@ fn search(state: &State<AppState>, req: Json<SearchRequest>) -> Json<SearchRespo
     Json(SearchResponse { results })
 }
 
-// =================== ROCKET + CORS ===================
+
+#[delete("/docs/<id>")]
+fn delete_doc(
+    state: &State<AppState>,
+    id: DocId,
+) -> Result<Json<DeleteResponse>, status::Custom<String>> {
+    let mut docs = state.docs.write().expect("RwLock poisoned");
+    let before = docs.len();
+
+    docs.retain(|d| d.id != id);
+
+    if docs.len() == before {
+        
+        Err(status::Custom(
+            Status::NotFound,
+            format!("Document with id {} not found", id),
+        ))
+    } else {
+        Ok(Json(DeleteResponse {
+            success: true,
+            remaining: docs.len(),
+        }))
+    }
+}
+
+
+
+#[delete("/docs")]
+fn delete_all_docs(state: &State<AppState>) -> Json<DeleteAllResponse> {
+    let mut docs = state.docs.write().expect("RwLock poisoned");
+    docs.clear();
+
+    
+    state.next_id.store(0, Ordering::Relaxed);
+
+    Json(DeleteAllResponse {
+        success: true,
+        remaining: 0,
+    })
+}
+
+
 
 fn build_rocket() -> Rocket<Build> {
     let allowed_origins = AllowedOrigins::some_exact(&[
@@ -228,8 +391,19 @@ fn build_rocket() -> Rocket<Build> {
     rocket::build()
         .manage(AppState {
             docs: RwLock::new(Vec::new()),
+            next_id: AtomicUsize::new(0),
         })
-        .mount("/api", routes![upload_files, list_docs, search])
+        .mount(
+            "/",
+            routes![
+                upload_files,
+                list_docs,
+                get_stats,
+                search,
+                delete_doc,
+                delete_all_docs
+            ],
+        )
         .attach(cors)
 }
 

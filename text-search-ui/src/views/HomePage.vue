@@ -1,41 +1,58 @@
 <script setup>
-import { ref } from "vue";
+import { deleteAllDocs, deleteDocById, searchWords, uploadTextFiles } from '@/api.js';
+import { computed, onMounted, ref } from "vue";
 import IconTextFinder from '../assets/Icontextfinder.png';
 
-const selectedFiles = ref([]);
-const message = ref("");
-const docsOnServer = ref([]);
+const uploadedFiles = ref([]);
+const searchWord1 = ref("");
+const searchWord2 = ref("");
+const isSearching = ref(false);
+const searchResults = ref(null);
+const errorMessage = ref("");
 
-const word1 = ref("");
-const word2 = ref("");
-const searchResult = ref(null);
+const canUploadMore = computed(() => uploadedFiles.value.length < 6);
 
-const handleFileChange = (event) => {
-  selectedFiles.value = Array.from(event.target.files);
-};
+const canSearch = computed(() => {
+  return (
+    uploadedFiles.value.length >= 2 &&
+    searchWord1.value.trim().length > 0 &&
+    searchWord2.value.trim().length > 0
+  );
+});
 
-async function uploadFiles() {
-  if (selectedFiles.value.length === 0) {
-    message.value = "Pilih minimal 1 file .txt dulu.";
+async function handleFileUpload(event) {
+  errorMessage.value = "";
+  const files = Array.from(event.target.files || []);
+  if (files.length === 0) return;
+
+  const remainingSlots = 6 - uploadedFiles.value.length;
+  if (remainingSlots <= 0) {
+    errorMessage.value = "Maksimal 6 file .txt yang bisa diupload.";
     return;
   }
 
-  if (selectedFiles.value.length < 2 || selectedFiles.value.length > 6) {
-    message.value = "Untuk project ini, pilih 2 sampai 6 file .txt.";
-    return;
+  const selected = files.slice(0, remainingSlots);
+
+  const txtFiles = selected.filter((f) =>
+    f.name.toLowerCase().endsWith(".txt")
+  );
+  if (txtFiles.length !== selected.length) {
+    errorMessage.value = "Hanya file .txt yang diizinkan.";
   }
+  if (txtFiles.length === 0) return;
 
   try {
-    message.value = "Membaca file dan upload...";
+    // BACA ISI FILE DI FRONTEND
     const payload = await Promise.all(
-      selectedFiles.value.map(
+      txtFiles.map(
         (file) =>
           new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => {
               resolve({
                 name: file.name,
-                content: reader.result,
+                content: reader.result, // <--- isi file
+                _size: file.size,
               });
             };
             reader.onerror = () => reject(reader.error);
@@ -44,52 +61,262 @@ async function uploadFiles() {
       )
     );
 
-    const result = await uploadTextFiles(payload);
-    message.value = `Upload sukses. Total dokumen di server: ${result.total_files}.`;
+    // KIRIM KE BACKEND
+    const uploadResult = await uploadTextFiles(
+      payload.map((p) => ({
+        name: p.name,
+        content: p.content,
+      }))
+    );
 
-    docsOnServer.value = await fetchDocs();
+    // SIMPAN JUGA content DI FRONTEND
+    uploadResult.doc_ids.forEach((id, idx) => {
+      const f = payload[idx];
+      uploadedFiles.value.push({
+        id,
+        name: f.name,
+        content: f.content // <--- PENTING untuk konteks & highlight
+      });
+    });
   } catch (err) {
     console.error(err);
-    message.value = "Upload gagal: " + err.message;
+    errorMessage.value = "Terjadi kesalahan saat upload: " + err.message;
+  } finally {
+    event.target.value = "";
   }
 }
 
-async function doSearch() {
-  const words = [];
-  if (word1.value.trim()) words.push(word1.value);
-  if (word2.value.trim()) words.push(word2.value);
 
-  if (words.length === 0) {
-    message.value = "Isi minimal 1 kata pencarian.";
+async function removeFile(id) {
+  errorMessage.value = "";
+  try {
+    await deleteDocById(id);
+    uploadedFiles.value = uploadedFiles.value.filter((f) => f.id !== id);
+    searchResults.value = null;
+  } catch (err) {
+    errorMessage.value = "Gagal menghapus file: " + err.message;
+  }
+}
+
+async function clearAllFiles() {
+  errorMessage.value = "";
+  try {
+    await deleteAllDocs();
+    uploadedFiles.value = [];
+    searchResults.value = null;
+    searchWord1.value = "";
+    searchWord2.value = "";
+  } catch (err) {
+    console.error(err);
+    errorMessage.value = "Gagal menghapus semua file: " + err.message;
+  }
+}
+
+function buildContextLines(fileContent, word1, word2, maxPerWord = 3) {
+  // AMANKAN kalau content kosong/undefined
+  if (!fileContent || typeof fileContent !== "string") {
+    return {
+      linesWithWord1: [],
+      linesWithWord2: [],
+    };
+  }
+
+  const lines = fileContent.split(/\r?\n/);
+
+  const result1 = [];
+  const result2 = [];
+
+  if (word1) {
+    const re1 = new RegExp(escapeRegExp(word1), "i");
+    lines.forEach((line, idx) => {
+      if (result1.length >= maxPerWord) return;
+      if (re1.test(line)) {
+        result1.push({
+          lineNumber: idx + 1,
+          content: line,
+        });
+      }
+    });
+  }
+
+  if (word2) {
+    const re2 = new RegExp(escapeRegExp(word2), "i");
+    lines.forEach((line, idx) => {
+      if (result2.length >= maxPerWord) return;
+      if (re2.test(line)) {
+        result2.push({
+          lineNumber: idx + 1,
+          content: line,
+        });
+      }
+    });
+  }
+
+  return {
+    linesWithWord1: result1,
+    linesWithWord2: result2,
+  };
+}
+
+
+
+async function performSearch() {
+  errorMessage.value = "";
+  searchResults.value = null;
+
+  const w1 = searchWord1.value.trim();
+  const w2 = searchWord2.value.trim();
+
+  if (!w1 || !w2) {
+    errorMessage.value = "Isi kedua kata pencarian terlebih dahulu.";
+    return;
+  }
+  if (uploadedFiles.value.length === 0) {
+    errorMessage.value = "Upload minimal 1 file sebelum melakukan pencarian.";
     return;
   }
 
+  isSearching.value = true;
   try {
-    message.value = "Melakukan pencarian...";
-    const result = await searchWords(words);
-    searchResult.value = result;
-    message.value =
-      words.length >= 2
-        ? "Pencarian selesai (mode parallel / multi-thread)."
-        : "Pencarian selesai (single thread).";
+    const data = await searchWords([w1, w2]);
+    // data.results: [{ word, total_count, per_doc: [{ doc_id, doc_name, count }] }]
+
+    const byWord = new Map();
+    (data.results || []).forEach((r) => {
+      // backend kita pakai lowercase (normalize_token)
+      byWord.set(r.word.toLowerCase(), r);
+    });
+
+    const r1 =
+      byWord.get(w1.toLowerCase()) ||
+      data.results?.[0] || { total_count: 0, per_doc: [] };
+    const r2 =
+      byWord.get(w2.toLowerCase()) ||
+      data.results?.[1] || { total_count: 0, per_doc: [] };
+
+    const totalCount1 = r1.total_count || 0;
+    const totalCount2 = r2.total_count || 0;
+
+    // gabung count per dokumen
+    const perFileMap = new Map(); // docId -> { fileId, fileName, count1, count2 }
+
+    (r1.per_doc || []).forEach((pd) => {
+      const existing = perFileMap.get(pd.doc_id) || {
+        fileId: pd.doc_id,
+        fileName: pd.doc_name,
+        count1: 0,
+        count2: 0,
+      };
+      existing.count1 = pd.count;
+      perFileMap.set(pd.doc_id, existing);
+    });
+
+    (r2.per_doc || []).forEach((pd) => {
+      const existing = perFileMap.get(pd.doc_id) || {
+        fileId: pd.doc_id,
+        fileName: pd.doc_name,
+        count1: 0,
+        count2: 0,
+      };
+      existing.count2 = pd.count;
+      perFileMap.set(pd.doc_id, existing);
+    });
+
+    // pastikan tiap file yang diupload tetap muncul
+    uploadedFiles.value.forEach((f) => {
+      if (!perFileMap.has(f.id)) {
+        perFileMap.set(f.id, {
+          fileId: f.id,
+          fileName: f.name,
+          count1: 0,
+          count2: 0,
+        });
+      }
+    });
+
+    const fileResults = Array.from(perFileMap.values()).map((entry) => {
+      const hasBothWords = entry.count1 > 0 && entry.count2 > 0;
+      const hasNoWords = entry.count1 === 0 && entry.count2 === 0;
+
+      // cari file di frontend untuk ambil CONTENT
+      const file = uploadedFiles.value.find((f) => f.id === entry.fileId);
+      const content = file?.content ?? "";
+
+      const { linesWithWord1, linesWithWord2 } = buildContextLines(
+        content,
+        w1,
+        w2
+      );
+
+      return {
+        fileId: entry.fileId,
+        fileName: entry.fileName,
+        count1: entry.count1,
+        count2: entry.count2,
+        hasBothWords,
+        hasNoWords,
+        linesWithWord1,
+        linesWithWord2,
+      };
+    });
+
+    const filesWithBothWords = fileResults.filter((f) => f.hasBothWords).length;
+
+    searchResults.value = {
+      word1: w1,
+      word2: w2,
+      totalCount1,
+      totalCount2,
+      filesWithBothWords,
+      fileResults,
+    };
+
+    // (opsional) cek di console:
+    console.log("fileResults dengan context:", fileResults);
   } catch (err) {
     console.error(err);
-    message.value = "Search gagal: " + err.message;
+    errorMessage.value = "Terjadi kesalahan saat mencari: " + err.message;
+  } finally {
+    isSearching.value = false;
   }
+}
+
+
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function highlightText(text, word1, word2) {
+  if (!text) return "";
+  const words = [word1, word2].filter((w) => w && w.length > 0);
+  if (words.length === 0) return text;
+
+  const pattern = new RegExp(
+    `(${words.map((w) => escapeRegExp(w)).join("|")})`,
+    "gi"
+  );
+
+  return text.replace(
+    pattern,
+    '<mark class="bg-yellow-300 px-1 rounded">$1</mark>'
+  );
 }
 
 onMounted(async () => {
   try {
-    docsOnServer.value = await fetchDocs();
+    await deleteAllDocs(); 
+    uploadedFiles.value = [];
+    searchResults.value = null;
+    searchWord1.value = "";
+    searchWord2.value = "";
   } catch (err) {
-    console.warn("Belum ada dokumen di server.");
+    console.warn("Gagal reset server saat load awal:", err);
   }
 });
 </script>
 
 <template>
   <div class="max-w-7xl mx-auto">
-    <!-- Header -->
     <div class="text-center mb-8 animate-fade-in">
       <div class="flex items-center justify-center gap-4 mb-2">
         <div class="w-12 h-12 md:w-16 md:h-16 bg-white rounded-full p-2 shadow-lg">
@@ -100,7 +327,7 @@ onMounted(async () => {
       <p class="text-white/90 text-lg">Upload 2-6 file .txt dan cari 2 kata secara bersamaan</p>
     </div>
 
-    <!-- Upload Section -->
+    
     <div class="bg-white rounded-2xl shadow-2xl p-6 md:p-8 mb-6 transform transition-all">
       <h2 class="text-2xl font-bold text-sky-700 mb-6 flex items-center gap-2">
         <span>📁</span> Upload File
@@ -131,7 +358,7 @@ onMounted(async () => {
         <p class="mt-3 text-gray-600 font-medium">{{ uploadedFiles.length }} / 6 file diupload</p>
       </div>
 
-      <!-- Uploaded Files List -->
+      
       <div v-if="uploadedFiles.length > 0" class="mt-6">
         <div class="flex justify-between items-center mb-4">
           <h3 class="text-lg font-semibold text-gray-800">File yang Diupload:</h3>
@@ -294,7 +521,7 @@ onMounted(async () => {
               </div>
             </div>
 
-            <!-- Context Lines for Word 1 -->
+            
             <div v-if="result.linesWithWord1.length > 0" class="mt-4 p-4 bg-white rounded-xl border-l-4 border-sky-600">
               <h5 class="font-bold text-sky-600 mb-3">Konteks "{{ searchResults.word1 }}":</h5>
               <div class="space-y-2">
@@ -312,7 +539,7 @@ onMounted(async () => {
               </div>
             </div>
 
-            <!-- Context Lines for Word 2 -->
+            
             <div v-if="result.linesWithWord2.length > 0" class="mt-4 p-4 bg-white rounded-xl border-l-4 border-sky-500">
               <h5 class="font-bold text-sky-500 mb-3">Konteks "{{ searchResults.word2 }}":</h5>
               <div class="space-y-2">
