@@ -1,42 +1,10 @@
-// src/api.js
 const API_BASE_URL = "http://localhost:8000/api";
 
-export async function uploadTextFiles(fileObjects) {
-  const res = await fetch(`${API_BASE_URL}/upload`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(fileObjects),
-  });
-
+export async function pingHello() {
+  const res = await fetch(`${API_BASE_URL}/hello`);
   if (!res.ok) {
-    throw new Error(`HTTP error! status: ${res.status}`);
+    throw new Error("Failed to call backend");
   }
-
-  return await res.json();
-}
-
-export async function fetchDocs() {
-  const res = await fetch(`${API_BASE_URL}/docs`);
-  if (!res.ok) {
-    throw new Error(`HTTP error! status: ${res.status}`);
-  }
-  return await res.json();
-}
-
-export async function searchWords(words) {
-  const res = await fetch(`${API_BASE_URL}/search`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ words }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`HTTP error! status: ${res.status}`);
-  }
-
-  return await res.json();
+  const text = await res.text();
+  return text;
 }

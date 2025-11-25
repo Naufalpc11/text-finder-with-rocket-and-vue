@@ -1,153 +1,64 @@
 <script setup>
-import { onMounted, ref } from "vue";
-import { fetchDocs, searchWords, uploadTextFiles } from "./api";
+import { ref, onMounted } from 'vue'
+import HomePage from './views/HomePage.vue'
 
-const selectedFiles = ref([]);
-const message = ref("");
-const docsOnServer = ref([]);
+const isLoading = ref(true)
 
-const word1 = ref("");
-const word2 = ref("");
-const searchResult = ref(null);
-
-const handleFileChange = (event) => {
-  selectedFiles.value = Array.from(event.target.files);
-};
-
-async function uploadFiles() {
-  if (selectedFiles.value.length === 0) {
-    message.value = "Pilih minimal 1 file .txt dulu.";
-    return;
-  }
-
-  if (selectedFiles.value.length < 2 || selectedFiles.value.length > 6) {
-    message.value = "Untuk project ini, pilih 2 sampai 6 file .txt.";
-    return;
-  }
-
-  try {
-    message.value = "Membaca file dan upload...";
-    const payload = await Promise.all(
-      selectedFiles.value.map(
-        (file) =>
-          new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              resolve({
-                name: file.name,
-                content: reader.result,
-              });
-            };
-            reader.onerror = () => reject(reader.error);
-            reader.readAsText(file, "UTF-8");
-          })
-      )
-    );
-
-    const result = await uploadTextFiles(payload);
-    message.value = `Upload sukses. Total dokumen di server: ${result.total_files}.`;
-
-    docsOnServer.value = await fetchDocs();
-  } catch (err) {
-    console.error(err);
-    message.value = "Upload gagal: " + err.message;
-  }
-}
-
-async function doSearch() {
-  const words = [];
-  if (word1.value.trim()) words.push(word1.value);
-  if (word2.value.trim()) words.push(word2.value);
-
-  if (words.length === 0) {
-    message.value = "Isi minimal 1 kata pencarian.";
-    return;
-  }
-
-  try {
-    message.value = "Melakukan pencarian...";
-    const result = await searchWords(words);
-    searchResult.value = result;
-    message.value =
-      words.length >= 2
-        ? "Pencarian selesai (mode parallel / multi-thread)."
-        : "Pencarian selesai (single thread).";
-  } catch (err) {
-    console.error(err);
-    message.value = "Search gagal: " + err.message;
-  }
-}
-
-onMounted(async () => {
-  try {
-    docsOnServer.value = await fetchDocs();
-  } catch (err) {
-    console.warn("Belum ada dokumen di server.");
-  }
-});
+onMounted(() => {
+  setTimeout(() => {
+    isLoading.value = false
+  }, 2500) // Loading selama 2.5 detik
+})
 </script>
 
 <template>
-  <main style="padding: 2rem; font-family: system-ui, sans-serif;">
-    <h1>Text Search with Rocket + Vue</h1>
-
-    <!-- Upload -->
-    <section style="margin-bottom: 2rem;">
-      <h2>1. Upload File .txt (2–6 file)</h2>
-      <input type="file" multiple accept=".txt" @change="handleFileChange" />
-      <button style="margin-left: 0.5rem;" @click="uploadFiles">
-        Upload ke Server
-      </button>
-
-      <div v-if="selectedFiles.length" style="margin-top: 0.5rem;">
-        <strong>File dipilih:</strong>
-        <ul>
-          <li v-for="file in selectedFiles" :key="file.name">
-            {{ file.name }}
-          </li>
-        </ul>
+  <!-- Loading Screen -->
+  <Transition name="fade">
+    <div v-if="isLoading" class="fixed inset-0 bg-sky-400 z-50 flex items-center justify-center">
+      <div class="text-center">
+        <!-- Logo Animation -->
+        <div class="relative mb-8">
+          <!-- Outer Ring -->
+          <div class="absolute inset-0 flex items-center justify-center">
+            <div class="w-32 h-32 border-4 border-white/30 rounded-full animate-spin-slow"></div>
+          </div>
+          <!-- Middle Ring -->
+          <div class="absolute inset-0 flex items-center justify-center">
+            <div class="w-24 h-24 border-4 border-white/50 rounded-full animate-spin" style="animation-direction: reverse;"></div>
+          </div>
+          <!-- Logo -->
+          <div class="relative z-10 flex items-center justify-center">
+            <div class="w-20 h-20 bg-white rounded-full flex items-center justify-center shadow-2xl animate-pulse-slow">
+              <span class="text-5xl">🔍</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Text -->
+        <h1 class="text-4xl font-bold text-white mb-4 animate-bounce-slow">Text Search Tool</h1>
+        <div class="flex gap-2 justify-center">
+          <div class="w-3 h-3 bg-white rounded-full animate-bounce" style="animation-delay: 0s;"></div>
+          <div class="w-3 h-3 bg-white rounded-full animate-bounce" style="animation-delay: 0.2s;"></div>
+          <div class="w-3 h-3 bg-white rounded-full animate-bounce" style="animation-delay: 0.4s;"></div>
+        </div>
       </div>
+    </div>
+  </Transition>
 
-      <div v-if="docsOnServer.length" style="margin-top: 0.5rem;">
-        <strong>Dokumen di server:</strong>
-        <ul>
-          <li v-for="doc in docsOnServer" :key="doc.id">
-            [{{ doc.id }}] {{ doc.name }}
-          </li>
-        </ul>
-      </div>
-    </section>
-
-    <!-- Search -->
-    <section style="margin-bottom: 2rem;">
-      <h2>2. Pencarian Kata</h2>
-      <p>
-        Isi 1 kata (single thread) atau 2 kata (otomatis parallel dengan Rayon /
-        multi-thread).
-      </p>
-      <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
-        <input v-model="word1" placeholder="Kata 1 (misal: kami)" />
-        <input v-model="word2" placeholder="Kata 2 (opsional, misal: mahasiswa)" />
-        <button @click="doSearch">Cari</button>
-      </div>
-    </section>
-
-    <p>{{ message }}</p>
-
-    <!-- Hasil search -->
-    <section v-if="searchResult" style="margin-top: 1rem;">
-      <h2>Hasil Pencarian</h2>
-      <div v-for="wordRes in searchResult.results" :key="wordRes.word">
-        <h3>
-          Kata: "{{ wordRes.word }}" — total kemunculan:
-          {{ wordRes.total_count }}
-        </h3>
-        <ul>
-          <li v-for="doc in wordRes.per_doc" :key="doc.doc_id">
-            [{{ doc.doc_id }}] {{ doc.doc_name }} → {{ doc.count }} kali
-          </li>
-        </ul>
-      </div>
-    </section>
-  </main>
+  <!-- Main App -->
+  <div class="min-h-screen bg-sky-400 p-4 md:p-8">
+    <HomePage />
+  </div>
 </template>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.5s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
