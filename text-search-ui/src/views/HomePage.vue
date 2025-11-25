@@ -42,7 +42,6 @@ async function handleFileUpload(event) {
   if (txtFiles.length === 0) return;
 
   try {
-    // BACA ISI FILE DI FRONTEND
     const payload = await Promise.all(
       txtFiles.map(
         (file) =>
@@ -51,7 +50,7 @@ async function handleFileUpload(event) {
             reader.onload = () => {
               resolve({
                 name: file.name,
-                content: reader.result, // <--- isi file
+                content: reader.result,
                 _size: file.size,
               });
             };
@@ -61,7 +60,6 @@ async function handleFileUpload(event) {
       )
     );
 
-    // KIRIM KE BACKEND
     const uploadResult = await uploadTextFiles(
       payload.map((p) => ({
         name: p.name,
@@ -69,13 +67,13 @@ async function handleFileUpload(event) {
       }))
     );
 
-    // SIMPAN JUGA content DI FRONTEND
+
     uploadResult.doc_ids.forEach((id, idx) => {
       const f = payload[idx];
       uploadedFiles.value.push({
         id,
         name: f.name,
-        content: f.content // <--- PENTING untuk konteks & highlight
+        content: f.content
       });
     });
   } catch (err) {
@@ -113,7 +111,6 @@ async function clearAllFiles() {
 }
 
 function buildContextLines(fileContent, word1, word2, maxPerWord = 3) {
-  // AMANKAN kalau content kosong/undefined
   if (!fileContent || typeof fileContent !== "string") {
     return {
       linesWithWord1: [],
@@ -179,11 +176,9 @@ async function performSearch() {
   isSearching.value = true;
   try {
     const data = await searchWords([w1, w2]);
-    // data.results: [{ word, total_count, per_doc: [{ doc_id, doc_name, count }] }]
 
     const byWord = new Map();
     (data.results || []).forEach((r) => {
-      // backend kita pakai lowercase (normalize_token)
       byWord.set(r.word.toLowerCase(), r);
     });
 
@@ -197,8 +192,7 @@ async function performSearch() {
     const totalCount1 = r1.total_count || 0;
     const totalCount2 = r2.total_count || 0;
 
-    // gabung count per dokumen
-    const perFileMap = new Map(); // docId -> { fileId, fileName, count1, count2 }
+    const perFileMap = new Map();
 
     (r1.per_doc || []).forEach((pd) => {
       const existing = perFileMap.get(pd.doc_id) || {
@@ -222,7 +216,6 @@ async function performSearch() {
       perFileMap.set(pd.doc_id, existing);
     });
 
-    // pastikan tiap file yang diupload tetap muncul
     uploadedFiles.value.forEach((f) => {
       if (!perFileMap.has(f.id)) {
         perFileMap.set(f.id, {
@@ -238,7 +231,6 @@ async function performSearch() {
       const hasBothWords = entry.count1 > 0 && entry.count2 > 0;
       const hasNoWords = entry.count1 === 0 && entry.count2 === 0;
 
-      // cari file di frontend untuk ambil CONTENT
       const file = uploadedFiles.value.find((f) => f.id === entry.fileId);
       const content = file?.content ?? "";
 
@@ -271,7 +263,6 @@ async function performSearch() {
       fileResults,
     };
 
-    // (opsional) cek di console:
     console.log("fileResults dengan context:", fileResults);
   } catch (err) {
     console.error(err);
