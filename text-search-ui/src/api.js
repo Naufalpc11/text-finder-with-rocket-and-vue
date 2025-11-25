@@ -24,3 +24,19 @@ export async function fetchDocs() {
   }
   return await res.json();
 }
+
+export async function searchWords(words) {
+  const res = await fetch(`${API_BASE_URL}/search`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ words }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`HTTP error! status: ${res.status}`);
+  }
+
+  return await res.json();
+}
