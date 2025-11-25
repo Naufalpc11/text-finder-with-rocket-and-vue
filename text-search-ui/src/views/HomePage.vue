@@ -1,173 +1,90 @@
 <script setup>
-import { ref, computed } from "vue";
+import { onMounted, ref } from "vue";
+import { fetchDocs, searchWords, uploadTextFiles } from "../api";
 
-// State management
-const uploadedFiles = ref([]);
-const searchWord1 = ref("");
-const searchWord2 = ref("");
-const searchResults = ref(null);
-const isSearching = ref(false);
-const errorMessage = ref("");
+const selectedFiles = ref([]);
+const message = ref("");
+const docsOnServer = ref([]);
 
-// File upload handler
-const handleFileUpload = (event) => {
-  const files = Array.from(event.target.files);
-  
-  const totalFiles = uploadedFiles.value.length + files.length;
-  if (totalFiles > 6) {
-    errorMessage.value = "Maksimal 6 file yang dapat diupload!";
-    return;
-  }
-  
-  const invalidFiles = files.filter(file => !file.name.endsWith('.txt'));
-  if (invalidFiles.length > 0) {
-    errorMessage.value = "Hanya file .txt yang diperbolehkan!";
-    return;
-  }
-  
-  errorMessage.value = "";
-  
-  files.forEach(file => {
-    const fileData = {
-      id: Date.now() + Math.random(),
-      file: file,
-      name: file.name,
-      size: (file.size / 1024).toFixed(2) + ' KB'
-    };
-    uploadedFiles.value.push(fileData);
-  });
-  
-  event.target.value = '';
+const word1 = ref("");
+const word2 = ref("");
+const searchResult = ref(null);
+
+const handleFileChange = (event) => {
+  selectedFiles.value = Array.from(event.target.files);
 };
 
-const removeFile = (fileId) => {
-  uploadedFiles.value = uploadedFiles.value.filter(f => f.id !== fileId);
-  errorMessage.value = "";
-};
-
-const clearAllFiles = () => {
-  uploadedFiles.value = [];
-  searchResults.value = null;
-  errorMessage.value = "";
-};
-
-const performSearch = async () => {
-  if (uploadedFiles.value.length < 2) {
-    errorMessage.value = "Minimal 2 file harus diupload!";
+async function uploadFiles() {
+  if (selectedFiles.value.length === 0) {
+    message.value = "Pilih minimal 1 file .txt dulu.";
     return;
   }
-  
-  if (!searchWord1.value.trim() || !searchWord2.value.trim()) {
-    errorMessage.value = "Kedua kata pencarian harus diisi!";
+
+  if (selectedFiles.value.length < 2 || selectedFiles.value.length > 6) {
+    message.value = "Untuk project ini, pilih 2 sampai 6 file .txt.";
     return;
   }
-  
-  errorMessage.value = "";
-  isSearching.value = true;
-  searchResults.value = null;
-  
+
   try {
-    const fileContents = await Promise.all(
-      uploadedFiles.value.map(async (fileData) => {
-        const text = await fileData.file.text();
-        return {
-          name: fileData.name,
-          content: text
-        };
-      })
+    message.value = "Membaca file dan upload...";
+    const payload = await Promise.all(
+      selectedFiles.value.map(
+        (file) =>
+          new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              resolve({
+                name: file.name,
+                content: reader.result,
+              });
+            };
+            reader.onerror = () => reject(reader.error);
+            reader.readAsText(file, "UTF-8");
+          })
+      )
     );
-    
-    const word1Lower = searchWord1.value.trim().toLowerCase();
-    const word2Lower = searchWord2.value.trim().toLowerCase();
-    
-    const results = {
-      word1: searchWord1.value.trim(),
-      word2: searchWord2.value.trim(),
-      totalCount1: 0,
-      totalCount2: 0,
-      filesWithBothWords: 0,
-      fileResults: []
-    };
-    
-    fileContents.forEach(({ name, content }) => {
-      const lines = content.split('\n');
-      const linesWithWord1 = [];
-      const linesWithWord2 = [];
-      let count1 = 0;
-      let count2 = 0;
-      
-      lines.forEach((line, index) => {
-        const lineLower = line.toLowerCase();
-        
-        const matches1 = lineLower.match(new RegExp(word1Lower, 'g'));
-        if (matches1) {
-          count1 += matches1.length;
-          linesWithWord1.push({
-            lineNumber: index + 1,
-            content: line.trim()
-          });
-        }
-        
-        const matches2 = lineLower.match(new RegExp(word2Lower, 'g'));
-        if (matches2) {
-          count2 += matches2.length;
-          linesWithWord2.push({
-            lineNumber: index + 1,
-            content: line.trim()
-          });
-        }
-      });
-      
-      results.totalCount1 += count1;
-      results.totalCount2 += count2;
-      
-      const hasBothWords = count1 > 0 && count2 > 0;
-      if (hasBothWords) {
-        results.filesWithBothWords++;
-      }
-      
-      results.fileResults.push({
-        fileName: name,
-        count1,
-        count2,
-        hasBothWords,
-        hasNoWords: count1 === 0 && count2 === 0,
-        linesWithWord1: linesWithWord1.slice(0, 3),
-        linesWithWord2: linesWithWord2.slice(0, 3)
-      });
-    });
-    
-    searchResults.value = results;
-    
-  } catch (error) {
-    errorMessage.value = "Error saat melakukan pencarian: " + error.message;
-  } finally {
-    isSearching.value = false;
+
+    const result = await uploadTextFiles(payload);
+    message.value = `Upload sukses. Total dokumen di server: ${result.total_files}.`;
+
+    docsOnServer.value = await fetchDocs();
+  } catch (err) {
+    console.error(err);
+    message.value = "Upload gagal: " + err.message;
   }
-};
+}
 
-// Function to highlight search words in text
-const highlightText = (text, word1, word2) => {
-  if (!text) return text;
-  
-  let result = text;
-  const word1Lower = word1.toLowerCase();
-  const word2Lower = word2.toLowerCase();
-  
-  // Create regex for case-insensitive replacement
-  const regex1 = new RegExp(`(${word1})`, 'gi');
-  const regex2 = new RegExp(`(${word2})`, 'gi');
-  
-  // Replace word1 with highlighted version
-  result = result.replace(regex1, '<mark class="bg-yellow-300 px-1 font-bold">$1</mark>');
-  // Replace word2 with highlighted version
-  result = result.replace(regex2, '<mark class="bg-yellow-300 px-1 font-bold">$1</mark>');
-  
-  return result;
-};
+async function doSearch() {
+  const words = [];
+  if (word1.value.trim()) words.push(word1.value);
+  if (word2.value.trim()) words.push(word2.value);
 
-const canUploadMore = computed(() => uploadedFiles.value.length < 6);
-const canSearch = computed(() => uploadedFiles.value.length >= 2 && searchWord1.value.trim() && searchWord2.value.trim());
+  if (words.length === 0) {
+    message.value = "Isi minimal 1 kata pencarian.";
+    return;
+  }
+
+  try {
+    message.value = "Melakukan pencarian...";
+    const result = await searchWords(words);
+    searchResult.value = result;
+    message.value =
+      words.length >= 2
+        ? "Pencarian selesai (mode parallel / multi-thread)."
+        : "Pencarian selesai (single thread).";
+  } catch (err) {
+    console.error(err);
+    message.value = "Search gagal: " + err.message;
+  }
+}
+
+onMounted(async () => {
+  try {
+    docsOnServer.value = await fetchDocs();
+  } catch (err) {
+    console.warn("Belum ada dokumen di server.");
+  }
+});
 </script>
 
 <template>
@@ -179,7 +96,7 @@ const canSearch = computed(() => uploadedFiles.value.length >= 2 && searchWord1.
     </div>
 
     <!-- Upload Section -->
-    <div class="bg-white rounded-2xl shadow-2xl p-6 md:p-8 mb-6 transform transition-all hover:scale-[1.01]">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 md:p-8 mb-6 transform transition-all">
       <h2 class="text-2xl font-bold text-sky-700 mb-6 flex items-center gap-2">
         <span>📁</span> Upload File
       </h2>
@@ -245,8 +162,7 @@ const canSearch = computed(() => uploadedFiles.value.length >= 2 && searchWord1.
       </div>
     </div>
 
-    <!-- Search Section -->
-    <div class="bg-white rounded-2xl shadow-2xl p-6 md:p-8 mb-6 transform transition-all hover:scale-[1.01]">
+    <div class="bg-white rounded-2xl shadow-2xl p-6 md:p-8 mb-6 transform transition-all">
       <h2 class="text-2xl font-bold text-sky-700 mb-6 flex items-center gap-2">
         <span></span> Pencarian
       </h2>
@@ -294,18 +210,15 @@ const canSearch = computed(() => uploadedFiles.value.length >= 2 && searchWord1.
       </button>
     </div>
 
-    <!-- Error Message -->
     <div v-if="errorMessage" class="bg-red-50 border-2 border-red-300 text-red-700 px-6 py-4 rounded-xl mb-6 text-center font-semibold animate-shake">
       ⚠️ {{ errorMessage }}
     </div>
 
-    <!-- Results Section -->
-    <div v-if="searchResults" class="bg-white rounded-2xl shadow-2xl p-6 md:p-8 animate-fade-in">
+    <div v-if="searchResults" class="bg-white rounded-2xl shadow-2xl p-6 md:p-8 animate-fade-in ">
       <h2 class="text-2xl font-bold text-sky-700 mb-6 flex items-center gap-2">
         <span></span> Hasil Pencarian
       </h2>
       
-      <!-- Summary -->
       <div class="mb-8">
         <div class="bg-sky-600 text-white p-6 rounded-2xl shadow-xl">
           <h3 class="text-xl font-bold mb-4">Total Kemunculan</h3>
@@ -329,7 +242,6 @@ const canSearch = computed(() => uploadedFiles.value.length >= 2 && searchWord1.
         </div>
       </div>
 
-      <!-- Per File Results -->
       <div>
         <h3 class="text-xl font-bold text-gray-800 mb-4">Detail:</h3>
         
@@ -338,7 +250,7 @@ const canSearch = computed(() => uploadedFiles.value.length >= 2 && searchWord1.
             v-for="result in searchResults.fileResults" 
             :key="result.fileName"
             :class="[
-              'border-2 rounded-2xl p-6 transition-all',
+              'border-2 rounded-2xl p-6 hover:scale-[1.02] hover:shadow-xl transition-all',
               result.hasBothWords 
                 ? 'border-green-500 bg-green-50' 
                 : result.hasNoWords
