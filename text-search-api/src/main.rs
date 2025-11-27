@@ -1,7 +1,6 @@
 #[macro_use]
 extern crate rocket;
 
-
 use rocket::{Build, Rocket, State};
 use rocket::serde::{Deserialize, Serialize, json::Json};
 use rocket::http::Status;
@@ -14,9 +13,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-
 type DocId = usize;
-
 
 #[derive(Debug, Clone)]
 struct Document {
@@ -27,14 +24,12 @@ struct Document {
     word_counts: HashMap<String, usize>,
 }
 
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(crate = "rocket::serde")]
 struct DocumentInfo {
     id: DocId,
     name: String,
 }
-
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(crate = "rocket::serde")]
@@ -47,7 +42,6 @@ struct AppState {
     next_id: AtomicUsize,
 }
 
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(crate = "rocket::serde")]
 struct UploadResponse {
@@ -55,14 +49,12 @@ struct UploadResponse {
     doc_ids: Vec<DocId>,
 }
 
-
 #[derive(Debug, Clone, Deserialize)]
 #[serde(crate = "rocket::serde")]
 struct SearchRequest {
    
     words: Vec<String>,
 }
-
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(crate = "rocket::serde")]
@@ -72,7 +64,6 @@ struct PerDocCount {
     count: usize,
 }
 
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(crate = "rocket::serde")]
 struct WordResult {
@@ -81,13 +72,11 @@ struct WordResult {
     per_doc: Vec<PerDocCount>,
 }
 
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(crate = "rocket::serde")]
 struct SearchResponse {
     results: Vec<WordResult>,
 }
-
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(crate = "rocket::serde")]
@@ -96,14 +85,12 @@ struct DeleteResponse {
     remaining: usize,
 }
 
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(crate = "rocket::serde")]
 struct DeleteAllResponse {
     success: bool,
     remaining: usize,
 }
-
 
 fn normalize_token(token: &str) -> String {
     token
@@ -113,14 +100,12 @@ fn normalize_token(token: &str) -> String {
         .to_lowercase()
 }
 
-
 fn tokenize(text: &str) -> Vec<String> {
     text.split_whitespace()
         .map(normalize_token)
         .filter(|w| !w.is_empty())
         .collect()
 }
-
 
 fn build_word_counts(text: &str) -> HashMap<String, usize> {
     tokenize(text)
@@ -131,18 +116,15 @@ fn build_word_counts(text: &str) -> HashMap<String, usize> {
         })
 }
 
-
 fn count_total_occurrences(per_doc: &[PerDocCount]) -> usize {
     per_doc.iter().map(|pd| pd.count).sum()
 }
-
 
 fn filter_docs_with_word<'a>(docs: &'a [Document], word: &str) -> Vec<&'a Document> {
     docs.iter()
         .filter(|doc| doc.word_counts.contains_key(word))
         .collect()
 }
-
 
 fn count_word(docs: &[Document], word: &str, index: usize, acc: usize) -> usize {
     if index >= docs.len() {
@@ -158,7 +140,6 @@ fn count_word(docs: &[Document], word: &str, index: usize, acc: usize) -> usize 
     count_word(docs, word, index + 1, acc + count)
 }
 
-
 fn calculate_doc_stats(docs: &[Document]) -> (usize, usize, usize, f64) {
     let total_docs = docs.len();
     let total_words: usize = docs
@@ -173,10 +154,8 @@ fn calculate_doc_stats(docs: &[Document]) -> (usize, usize, usize, f64) {
     } else {
         0.0
     };
-   
     (total_docs, total_words, total_bytes, avg_words)
 }
-
 
 fn search_single_word(docs: &[Document], raw_word: &str) -> WordResult {
     let word = normalize_token(raw_word);
@@ -215,7 +194,6 @@ fn search_single_word(docs: &[Document], raw_word: &str) -> WordResult {
     }
 }
 
-
 #[post("/upload", format = "json", data = "<files>")]
 async fn upload_files(
     state: &State<AppState>,
@@ -238,7 +216,6 @@ async fn upload_files(
             })
             .collect()
     };
-
 
     let mut docs_guard = state.docs.write().expect("RwLock poisoned");
     let new_ids: Vec<DocId> = processed_docs
@@ -277,7 +254,6 @@ fn list_docs(state: &State<AppState>) -> Json<Vec<DocumentInfo>> {
     Json(list)
 }
 
-
 #[get("/stats")]
 fn get_stats(state: &State<AppState>) -> Json<serde_json::Value> {
     let docs_guard = state.docs.read().expect("RwLock poisoned");
@@ -291,7 +267,6 @@ fn get_stats(state: &State<AppState>) -> Json<serde_json::Value> {
     }))
 }
 
-
 #[post("/search", format = "json", data = "<req>")]
 fn search(state: &State<AppState>, req: Json<SearchRequest>) -> Json<SearchResponse> {
     let words: Vec<String> = req
@@ -301,9 +276,7 @@ fn search(state: &State<AppState>, req: Json<SearchRequest>) -> Json<SearchRespo
         .filter(|w| !w.is_empty())
         .collect();
 
-
     let docs_guard = state.docs.read().expect("RwLock poisoned");
-
     let results: Vec<WordResult> = if words.len() <= 1 {
        
         words
@@ -317,7 +290,6 @@ fn search(state: &State<AppState>, req: Json<SearchRequest>) -> Json<SearchRespo
             .collect()
     };
 
-
     Json(SearchResponse { results })
 }
 
@@ -330,9 +302,7 @@ fn delete_doc(
     let mut docs = state.docs.write().expect("RwLock poisoned");
     let before = docs.len();
 
-
     docs.retain(|d| d.id != id);
-
 
     if docs.len() == before {
        
@@ -348,30 +318,22 @@ fn delete_doc(
     }
 }
 
-
 #[delete("/docs")]
 fn delete_all_docs(state: &State<AppState>) -> Json<DeleteAllResponse> {
     let mut docs = state.docs.write().expect("RwLock poisoned");
     docs.clear();
-
-
-   
     state.next_id.store(0, Ordering::Relaxed);
-
-
     Json(DeleteAllResponse {
         success: true,
         remaining: 0,
     })
 }
 
-
 fn build_rocket() -> Rocket<Build> {
     let allowed_origins = AllowedOrigins::some_exact(&[
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]);
-
 
     let cors = CorsOptions {
         allowed_origins,
@@ -400,7 +362,6 @@ fn build_rocket() -> Rocket<Build> {
         )
         .attach(cors)
 }
-
 
 #[launch]
 fn rocket() -> _ {
