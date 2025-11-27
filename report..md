@@ -50,6 +50,145 @@ Aplikasi ini menggunakan Rust untuk backend yang bertugas mencari teks di dalam 
 ---
 
 ## Source Code and Explanation
+### Struktur Folder
+```
+text-finder-with-rocket-and-vue
+├── dataset
+|   ├── random_1.txt
+|   ├── random_2.txt
+|   ├── random_3.txt
+|   ├── random_4.txt
+|   ├── random_5.txt
+|   └── random_6.txt
+├── screenshot
+|   ├── result_detail_1.png
+|   ├── result_detail_2.png
+|   ├── result_detail_3.png
+|   ├── result_detail_4.png
+|   ├── result_detail_6.png
+|   ├── result_word.png
+|   ├── search_2_word.png
+|   └── upload_file_txt.png
+├── text-search-api
+|   ├── src
+|   |   └── main.rs
+|   ├── .gitignore
+|   ├── Cargo.lock
+|   └── Cargo.toml
+├── text-search-ui
+|   ├── .vscode
+|   |   └── extensions.json
+|   ├── public
+|   |   └── favicon.ico
+|   ├── src
+|   |   ├── assets
+|   |   |   └── Icontextfinder.png
+|   |   ├── views
+|   |   |   └── HomePage.vue
+|   |   ├── api.js
+|   |   ├── App.vue
+|   |   ├── main.js
+|   |   └── style.css
+|   ├── .gitignore
+|   ├── index.html
+|   ├── jsconfig.json
+|   ├── package-lock.json
+|   ├── package.json
+|   ├── postcss.config.json
+|   ├── README.md
+|   ├── tailwind.config.js
+|   └── vite.config.js
+└── report.md
+```
+
+### Penjelasan Kode
+#### Backend (./text-search.api)
+Kode ini adalah backend API berbasis Rocket (Rust) yang berfungsi untuk:
+1. Upload file berisi teks
+2. Menyimpan dokumen pada memori
+3. Menghitung jumlah kata pada setiap dokumen
+4. Melakukan pencarian kata di seluruh dokumen
+5. Menghapus dokumen satu per satu atau semuanya
+6. Menghitung statistik dokumen
+7. mengizinkan akses dari frontend (CORS)
+
+Semua data disimpan menggunakan RwLock + AtomicUsize sehingga thread-safe dan bisa diproses secara paralel dengan Rayon's `par_iter()`
+
+##### Penjelasan Bagian
+Full kode dari _back-end_ dapat dilihat pada file `main.rs` yang berada di `./text-search-api/src/main.rs`
+
+Berikut adalah sedikit penjelasan kode dari file main.rs
+
+###### _Import Library_
+```rs
+extern crate rocket;
+use rocket::*;
+use rayon::prelude::*;
+use std::sync::{RwLock, atomic::{AtomicUsize, Ordering}};
+```
+adalah bagian kode yang berfungsi untuk melakukan _import library_ yang dibutuhkan dengan fungsinya, yaitu sebagai berikut:
+- rocket &rarr; membuat API HTTP
+- rayon &rarr; mempercepat proses dengan paralel
+- RwLock &rarr; menyimpan dokumen secara aman untuk multiple-thread
+- AtomicUsize &rarr; membuat ID dokumen secara otomatis
+
+###### Struktur Data Dokumen
+```rs
+struct Document { id, name, content, word_counts }
+```
+adalah sebuah blok kode yang membuat sebuah stuktur data Dokumen yang meyimpan 1 file yang telah di-upload, termasuk:
+- Isi dokumen
+- Jumlah kemunculan setiap kata
+
+###### AppState (Penyimpanan Global)
+```rs
+struct AppState {
+    docs: RwLock<Vec<Document>>,
+    next_id: AtomicUsize,
+}
+```
+adalah database sementara pada memori yang berisi:
+- docs &rarr; daftar semua dokumen
+- next_id &rarr; generator ID dokumen
+
+###### Utiliy Functions
+`normalize_token` &rarr; Membersihkan kata dari simbol dan _lowercase_
+
+`tokenize` &rarr; Memecah teks menjadi daftar kata
+
+`build_word_counts` &rarr; Menghitung jumlahs setiap kata dalam teks (HashMap)
+
+`search_single_word` &rarr; Logika yang mencari satu kata pada seluruh dokumen:
+- filter dokumen yang mengandung kata
+- hitung total kemunculan
+- kembalikan daftar dokumen yang sesuai
+
+###### List Routes
+Berikut adalah list _routes_ yang digunakan:
+- `POST /upload` &rarr; Upload beberapa file sekaligus
+- `GET /docs` &rarr; Mengambil id dan nama dokumen
+- `GET /stats` &rarr; Mengembalikan statistik keseluruhan dokumen
+- `POST /search` &rarr; Mencari satu atau banyak kata
+- `DELETE /docs/<id>` &rarr; Menghapus dokumen tertentu berdasarkan ID.
+- `DELETE /docs` &rarr; Menghapus semua dokumen dan reset `next_id` menjadi 0
+
+#### Frontend (./text-search-ui)
+_Frontend_ dibangun menggunakan bahasa pemrograman Vue yang dimana terbagi menjadi 2 bagian/file, yaitu `App.vue` dan `src/HomePage.vue`. Dengan kegunaan sebagai berikut:
+
+##### App.vue
+Adalah halaman utama aplikasi Vue yang fungsinya untuk:
+1. Menampilkan animasi loading screen selama 1 detik
+2. Menampilkan halaman utama (`HomePage.vue`) setelah loading selesai
+3. Menggunakan TailwindCSS untuk styling dan animasi
+4. Memakain Vue Composition API (`<script setup>`)
+
+##### src/HomePage.vue
+Kode ini adalah kode utama yang menampilkan halaman utama untuk website/aplikasi pencari kata dalam beberapa file .txt yang dapat:
+1. Upload 2-6 file
+2. Mencari 2 kata sekaligus
+3. Menampilkan jumlah kemunculan
+4. Menampilkan file yang tidak mengandung, mengandung kedua kata dan mengandung satu kata
+5. Menampilkan 3 konteks baris per kata
 
 ## Screenshot
 ### Upload File (.txt)
@@ -65,5 +204,6 @@ Aplikasi ini menggunakan Rust untuk backend yang bertugas mencari teks di dalam 
 ![Screenshot Upload File](./screenshot/result_detail_4.png)
 ![Screenshot Upload File](./screenshot/result_detail_5.png)
 ![Screenshot Upload File](./screenshot/result_detail_6.png)
+
 ## Conclusion
 tunggu seendaknya technology stack udah teisi baru kulanjut
