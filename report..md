@@ -32,7 +32,7 @@ Berikut ini adalah konsep-konsep teoretis yang menjadi dasar dalam pengembangan 
 
 ### Technology Stack
 - Rust  
-- Framework (Axum, Rocket, GTK4+, or Tauri)  
+- Framework (Axum, Rocket, GTK4+, or Tauri)  a
 - Async runtime (Tokio, if used)  
 - Supporting crates (serde, anyhow, thiserror, etc.)
 
@@ -43,6 +43,18 @@ Each concept should give readers enough context to understand your design.
 ## Source Code and Explanation
 
 ## Screenshot
-
+### Upload File (.txt)
+![Screenshot Upload File](./screenshot/upload_file_txt.png)
+### Masukan 2 Kata yang ingin Dicari dalam File
+![Screenshot Upload File](./screenshot/search_2_word.png)
+### Hasil Pencarian berdasarkan Kata yang Dicari
+![Screenshot Upload File](./screenshot/result_word.png)
+### Hasil Pencarian Kata per-File 
+![Screenshot Upload File](./screenshot/result_detail_1.png)
+![Screenshot Upload File](./screenshot/result_detail_2.png)
+![Screenshot Upload File](./screenshot/result_detail_3.png)
+![Screenshot Upload File](./screenshot/result_detail_4.png)
+![Screenshot Upload File](./screenshot/result_detail_5.png)
+![Screenshot Upload File](./screenshot/result_detail_6.png)
 ## Conclusion
 tunggu seendaknya technology stack udah teisi baru kulanjut
