@@ -33,10 +33,12 @@ pub fn search_single_word(docs: &[Document], raw_word: &str) -> WordResult {
         .filter_map(|doc| {
             doc.word_counts.get(&word).copied().and_then(|count| {
                 if count > 0 {
+                    let snippets = extract_snippets(&doc.content, raw_word, 3);
                     Some(PerDocCount {
                         doc_id: doc.id,
                         doc_name: doc.name.clone(),
                         count,
+                        snippets,
                     })
                 } else {
                     None
@@ -66,6 +68,41 @@ pub fn search_single_word(docs: &[Document], raw_word: &str) -> WordResult {
 
 fn calculate_total_count(per_doc: &[PerDocCount]) -> usize {
     per_doc.iter().map(|pd| pd.count).sum()
+}
+
+fn extract_snippets(content: &str, search_word: &str, max_snippets: usize) -> Vec<String> {
+    let normalized_search = normalize_token(search_word);
+    let sentences: Vec<&str> = content
+        .split(|c| c == '.' || c == '!' || c == '?')
+        .filter(|s| !s.trim().is_empty())
+        .collect();
+    
+    let mut snippets = Vec::new();
+    
+    for sentence in sentences {
+        if snippets.len() >= max_snippets {
+            break;
+        }
+        
+        let words: Vec<String> = sentence
+            .split_whitespace()
+            .map(|w| normalize_token(w))
+            .collect();
+        
+        if words.contains(&normalized_search) {
+            let trimmed = sentence.trim();
+            if !trimmed.is_empty() {
+                let display = if trimmed.len() > 150 {
+                    format!("{}...", &trimmed[..150])
+                } else {
+                    trimmed.to_string()
+                };
+                snippets.push(display);
+            }
+        }
+    }
+    
+    snippets
 }
 
 pub fn find_docs_with_all_words(docs: &[Document], words: &[String]) -> Vec<(usize, String, usize)> {

@@ -54,6 +54,13 @@ function isDocWithAllWords(docId) {
   }
   return searchResults.value.docs_with_all_words.some(doc => doc.doc_id === docId);
 }
+
+function highlightWord(text, word) {
+  if (!text || !word) return text;
+  
+  const regex = new RegExp(`(${word})`, 'gi');
+  return text.replace(regex, '<mark class="bg-yellow-300 font-bold px-1 rounded">$1</mark>');
+}
 </script>
 
 <template>
@@ -240,14 +247,30 @@ function isDocWithAllWords(docId) {
               <div 
                 v-for="doc in wordResult.per_doc" 
                 :key="doc.doc_id"
-                class="flex justify-between items-center p-3 bg-white rounded-lg"
+                class="p-4 bg-white rounded-lg border border-sky-200"
               >
-                <span class="font-medium text-gray-800">
-                  📕 {{ doc.doc_name }}
-                </span>
-                <span class="bg-sky-500 text-white px-4 py-1 rounded-full font-bold">
-                  {{ doc.count }}x
-                </span>
+                <div class="flex justify-between items-center mb-3">
+                  <span class="font-medium text-gray-800 flex items-center gap-2">
+                    📕 {{ doc.doc_name }}
+                  </span>
+                  <span class="bg-sky-500 text-white px-4 py-1 rounded-full font-bold">
+                    {{ doc.count }}x
+                  </span>
+                </div>
+                
+                <!-- Snippets/Context -->
+                <div v-if="doc.snippets && doc.snippets.length > 0" class="mt-3 space-y-2">
+                  <p class="text-xs font-semibold text-gray-600 mb-2">📝 Konteks:</p>
+                  <div 
+                    v-for="(snippet, idx) in doc.snippets.slice(0, 3)" 
+                    :key="idx"
+                    class="text-sm text-gray-700 bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded"
+                    v-html="highlightWord(snippet, wordResult.word)"
+                  ></div>
+                  <p v-if="doc.count > 3" class="text-xs text-gray-500 italic mt-2">
+                    ...dan {{ doc.count - 3 }} kemunculan lainnya
+                  </p>
+                </div>
               </div>
             </div>
             <div v-else class="text-gray-500 italic">

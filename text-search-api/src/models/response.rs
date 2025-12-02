@@ -6,6 +6,7 @@ pub struct PerDocCount {
     pub doc_id: DocId,
     pub doc_name: String,
     pub count: usize,
+    pub snippets: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
