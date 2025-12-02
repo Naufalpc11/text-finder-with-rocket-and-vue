@@ -38,6 +38,7 @@ async function performSearch() {
       query: searchQuery.value.trim(),
       words: result.results,
       benchmark: result.benchmark,
+      docs_with_all_words: result.docs_with_all_words || [],
     };
   } catch (error) {
     errorMessage.value = "Terjadi kesalahan saat pencarian: " + error.message;
@@ -45,6 +46,13 @@ async function performSearch() {
   } finally {
     isSearching.value = false;
   }
+}
+
+function isDocWithAllWords(docId) {
+  if (!searchResults.value || !searchResults.value.docs_with_all_words) {
+    return false;
+  }
+  return searchResults.value.docs_with_all_words.some(doc => doc.doc_id === docId);
 }
 </script>
 
@@ -76,16 +84,27 @@ async function performSearch() {
           </p>
         </div>
         
-        <div class="grid md:grid-cols-2 gap-3">
+        <div class="space-y-3">
           <div 
             v-for="doc in availableDocs" 
             :key="doc.id"
-            class="flex items-center gap-3 p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+            :class="[
+              'flex items-center gap-3 p-4 rounded-xl transition-all',
+              isDocWithAllWords(doc.id) 
+                ? 'bg-green-100 border-2 border-green-500 shadow-lg' 
+                : 'bg-gray-50 hover:bg-gray-100'
+            ]"
           >
-            <span class="text-3xl">📕</span>
+            <span class="text-3xl">{{ isDocWithAllWords(doc.id) ? '📗' : '📕' }}</span>
             <div class="flex-1 min-w-0">
               <p class="font-semibold text-gray-800 truncate">{{ doc.name }}</p>
+              <p v-if="isDocWithAllWords(doc.id)" class="text-xs text-green-700 font-semibold mt-1">
+                ✓ Mengandung semua kata yang dicari
+              </p>
             </div>
+            <span v-if="isDocWithAllWords(doc.id)" class="bg-green-600 text-white px-3 py-1 rounded-full text-xs font-bold">
+              MATCH
+            </span>
           </div>
         </div>
       </div>
@@ -161,6 +180,41 @@ async function performSearch() {
             ? `🚀 Parallel processing ${searchResults.benchmark.speedup.toFixed(2)}x lebih cepat!` 
             : '⏱️ Sequential sama cepat atau lebih cepat (data terlalu kecil untuk parallelization overhead)' 
           }}
+        </p>
+      </div>
+
+      <!-- Documents with ALL Words -->
+      <div v-if="searchResults.docs_with_all_words && searchResults.docs_with_all_words.length > 0" class="mb-8 p-6 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl text-white">
+        <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+          <span>✅</span> Dokumen dengan SEMUA Kata yang Dicari
+        </h3>
+        <p class="mb-4 text-sm opacity-90">
+          {{ searchResults.docs_with_all_words.length }} dokumen mengandung seluruh kata yang Anda cari
+        </p>
+        <div class="space-y-2">
+          <div 
+            v-for="doc in searchResults.docs_with_all_words" 
+            :key="doc.doc_id"
+            class="flex items-center gap-3 p-4 bg-white/20 backdrop-blur rounded-xl"
+          >
+            <span class="text-3xl">📗</span>
+            <div class="flex-1">
+              <p class="font-bold text-lg">{{ doc.doc_name }}</p>
+              <p class="text-sm opacity-90">ID: {{ doc.doc_id }} • Matched: {{ doc.matched_words }} kata</p>
+            </div>
+            <span class="bg-white text-green-600 px-4 py-2 rounded-full font-bold">
+              ✓ Complete
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="searchResults.docs_with_all_words && searchResults.docs_with_all_words.length === 0" class="mb-8 p-6 bg-gradient-to-r from-orange-400 to-red-500 rounded-2xl text-white">
+        <h3 class="text-xl font-bold mb-2 flex items-center gap-2">
+          <span>⚠️</span> Tidak Ada Dokumen dengan SEMUA Kata
+        </h3>
+        <p class="text-sm opacity-90">
+          Tidak ada dokumen yang mengandung seluruh kata yang Anda cari. Lihat hasil per-kata di bawah.
         </p>
       </div>
 

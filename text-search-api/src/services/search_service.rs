@@ -68,6 +68,30 @@ fn calculate_total_count(per_doc: &[PerDocCount]) -> usize {
     per_doc.iter().map(|pd| pd.count).sum()
 }
 
+pub fn find_docs_with_all_words(docs: &[Document], words: &[String]) -> Vec<(usize, String, usize)> {
+    if words.is_empty() {
+        return Vec::new();
+    }
+    
+    docs.iter()
+        .filter_map(|doc| {
+            let normalized_words: Vec<String> = words.iter()
+                .map(|w| normalize_token(w))
+                .collect();
+            
+            let matched_count = normalized_words.iter()
+                .filter(|word| doc.word_counts.get(*word).copied().unwrap_or(0) > 0)
+                .count();
+            
+            if matched_count == words.len() {
+                Some((doc.id, doc.name.clone(), matched_count))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
 fn count_word_recursive(docs: &[Document], word: &str, index: usize, acc: usize) -> usize {
     if index >= docs.len() {
         return acc;

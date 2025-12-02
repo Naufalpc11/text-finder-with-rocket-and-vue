@@ -23,7 +23,15 @@ pub struct BenchmarkTiming {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct DocumentMatch {
+    pub doc_id: DocId,
+    pub doc_name: String,
+    pub matched_words: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct SearchResponse {
     pub results: Vec<WordResult>,
     pub benchmark: BenchmarkTiming,
+    pub docs_with_all_words: Vec<DocumentMatch>,
 }

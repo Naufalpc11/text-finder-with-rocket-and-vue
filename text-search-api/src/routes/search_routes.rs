@@ -1,8 +1,8 @@
 use rocket::{State, serde::json::Json};
 use crate::models::request::SearchRequest;
-use crate::models::response::{SearchResponse, BenchmarkTiming};
+use crate::models::response::{SearchResponse, BenchmarkTiming, DocumentMatch};
 use crate::services::{search_words_parallel, search_words_sequential};
-use crate::services::search_service::split_query_into_words;
+use crate::services::search_service::{split_query_into_words, find_docs_with_all_words};
 use crate::AppState;
 use std::time::Instant;
 
@@ -31,6 +31,15 @@ pub fn search(state: &State<AppState>, req: Json<SearchRequest>) -> Json<SearchR
     } else {
         1.0
     };
+    
+    let docs_with_all = find_docs_with_all_words(&docs_guard, &words);
+    let docs_with_all_words: Vec<DocumentMatch> = docs_with_all.into_iter()
+        .map(|(id, name, matched)| DocumentMatch {
+            doc_id: id,
+            doc_name: name,
+            matched_words: matched,
+        })
+        .collect();
 
     Json(SearchResponse {
         results: results_parallel,
@@ -39,5 +48,6 @@ pub fn search(state: &State<AppState>, req: Json<SearchRequest>) -> Json<SearchR
             sequential_ms,
             speedup,
         },
+        docs_with_all_words,
     })
 }
