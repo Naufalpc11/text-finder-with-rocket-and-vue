@@ -191,9 +191,9 @@ Kode ini adalah kode utama yang menampilkan halaman utama untuk website/aplikasi
 5. Menampilkan 3 konteks baris per kata
 
 ## Screenshot
-### Upload File (.txt)
+### Halaman Awal (telah disediakan 2 file .pdf)
 ![Screenshot Upload File](./screenshot/upload_file_txt.png)
-### Masukan 2 Kata yang ingin Dicari dalam File
+### Masukan 2 Kata atau Lebih yang ingin Dicari dalam File
 ![Screenshot Upload File](./screenshot/search_2_word.png)
 ### Hasil Pencarian berdasarkan Kata yang Dicari
 ![Screenshot Upload File](./screenshot/result_word.png)
@@ -201,9 +201,6 @@ Kode ini adalah kode utama yang menampilkan halaman utama untuk website/aplikasi
 ![Screenshot Upload File](./screenshot/result_detail_1.png)
 ![Screenshot Upload File](./screenshot/result_detail_2.png)
 ![Screenshot Upload File](./screenshot/result_detail_3.png)
-![Screenshot Upload File](./screenshot/result_detail_4.png)
-![Screenshot Upload File](./screenshot/result_detail_5.png)
-![Screenshot Upload File](./screenshot/result_detail_6.png)
 
 ## Conclusion
 TextSearch berhasil mengimplementasikan sebuah solusi pencarian teks multi-berkas dan dgn 2 search bar yang memanfaatkan kekuatan Rust dan prinsip pemrograman fungsional. Aplikasi ini mampu mengatasi keterbatasan metode pencarian biasa dengan menyediakan antarmuka web yang intuitif untuk mengunggah 2 hingga 6 file teks sekaligus dan melakukan pencarian paralel untuk beberapa kata kunci. Penerapan konsep pemrograman fungsional melalui penggunaan iterator chains, higher-order functions, dan data immutability telah menghasilkan kode backend yang mudah diuji. Kombinasi Rust dengan framework Rocket dan library Rayon memungkinkan eksekusi pencarian yang sangat efisien melalui pemanfaatan multi-threading, sementara frontend Vue.js memberikan pengalaman pengguna yang responsif dengan kemampuan highlight hasil pencarian. Meskipun telah berfungsi dengan baik, aplikasi ini dapat dikembangankan lebih lanjut seperti dgn penambahan support untuk format file lain. Secara keseluruhan, proyek ini membuktikan bahwa pendekatan fungsional dalam ekosistem Rust dapat menghasilkan aplikasi yang tidak hanya bagus secara performa tetapi juga maintainable dan scalable.
