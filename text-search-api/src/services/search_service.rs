@@ -72,37 +72,27 @@ fn calculate_total_count(per_doc: &[PerDocCount]) -> usize {
 
 fn extract_snippets(content: &str, search_word: &str, max_snippets: usize) -> Vec<String> {
     let normalized_search = normalize_token(search_word);
-    let sentences: Vec<&str> = content
+    
+    content
         .split(|c| c == '.' || c == '!' || c == '?')
         .filter(|s| !s.trim().is_empty())
-        .collect();
-    
-    let mut snippets = Vec::new();
-    
-    for sentence in sentences {
-        if snippets.len() >= max_snippets {
-            break;
-        }
-        
-        let words: Vec<String> = sentence
-            .split_whitespace()
-            .map(|w| normalize_token(w))
-            .collect();
-        
-        if words.contains(&normalized_search) {
+        .filter(|sentence| {
+            let words: Vec<String> = sentence
+                .split_whitespace()
+                .map(|w| normalize_token(w))
+                .collect();
+            words.contains(&normalized_search)
+        })
+        .take(max_snippets)
+        .map(|sentence| {
             let trimmed = sentence.trim();
-            if !trimmed.is_empty() {
-                let display = if trimmed.len() > 150 {
-                    format!("{}...", &trimmed[..150])
-                } else {
-                    trimmed.to_string()
-                };
-                snippets.push(display);
+            if trimmed.len() > 150 {
+                format!("{}...", &trimmed[..150])
+            } else {
+                trimmed.to_string()
             }
-        }
-    }
-    
-    snippets
+        })
+        .collect()
 }
 
 pub fn find_docs_with_all_words(docs: &[Document], words: &[String]) -> Vec<(usize, String, usize)> {
