@@ -195,7 +195,7 @@ Kode ini adalah kode utama yang menampilkan halaman utama untuk website/aplikasi
 
 ## Screenshot
 ### Halaman Awal (telah disediakan 2 file .pdf)
-![Screenshot Upload File](./screenshot/upload_file_txt.png)
+![Screenshot Upload File](./screenshot/upload_file_pdf.png)
 ### Masukan 2 Kata atau Lebih yang ingin Dicari dalam File
 ![Screenshot Upload File](./screenshot/search_2_word.png)
 ### Hasil Pencarian berdasarkan Kata yang Dicari

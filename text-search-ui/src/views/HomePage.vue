@@ -64,9 +64,9 @@ function highlightWord(text, word) {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gradient-to-br from-blue-100 via-purple-50 to-pink-100 py-8 px-4">
+  <div class="min-h-screen bg-linear-to-br from-blue-100 via-purple-50 to-pink-100 py-8 px-4">
     <!-- Header -->
-    <div class="max-w-5xl mx-auto bg-gradient-to-r from-sky-600 to-indigo-600 rounded-3xl shadow-2xl p-6 mb-6 text-center">
+    <div class="max-w-5xl mx-auto bg-linear-to-r from-sky-600 to-indigo-600 rounded-3xl shadow-2xl p-6 mb-6 text-center">
       <div class="flex items-center justify-center gap-4 mb-3">
         <img :src="IconTextFinder" alt="Logo" class="h-16 w-16" />
         <h1 class="text-4xl font-extrabold text-white">Text Finder</h1>
@@ -164,7 +164,7 @@ function highlightWord(text, word) {
       </h2>
       
       <!-- Benchmark Results -->
-      <div class="mb-8 p-6 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl text-white">
+      <div class="mb-8 p-6 bg-linear-to-r from-purple-500 to-pink-500 rounded-2xl text-white">
         <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
           <span>⚡</span> Performa Benchmark
         </h3>
@@ -191,7 +191,7 @@ function highlightWord(text, word) {
       </div>
 
       <!-- Documents with ALL Words -->
-      <div v-if="searchResults.docs_with_all_words && searchResults.docs_with_all_words.length > 0" class="mb-8 p-6 bg-gradient-to-r from-green-500 to-emerald-500 rounded-2xl text-white">
+      <div v-if="searchResults.docs_with_all_words && searchResults.docs_with_all_words.length > 0" class="mb-8 p-6 bg-linear-to-r from-green-500 to-emerald-500 rounded-2xl text-white">
         <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
           <span>✅</span> Dokumen dengan SEMUA Kata yang Dicari
         </h3>
@@ -216,7 +216,7 @@ function highlightWord(text, word) {
         </div>
       </div>
 
-      <div v-else-if="searchResults.docs_with_all_words && searchResults.docs_with_all_words.length === 0" class="mb-8 p-6 bg-gradient-to-r from-orange-400 to-red-500 rounded-2xl text-white">
+      <div v-else-if="searchResults.docs_with_all_words && searchResults.docs_with_all_words.length === 0" class="mb-8 p-6 bg-linear-to-r from-orange-400 to-red-500 rounded-2xl text-white">
         <h3 class="text-xl font-bold mb-2 flex items-center gap-2">
           <span>⚠️</span> Tidak Ada Dokumen dengan SEMUA Kata
         </h3>

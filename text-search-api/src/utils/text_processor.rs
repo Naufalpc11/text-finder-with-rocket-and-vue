@@ -13,7 +13,7 @@ pub fn tokenize(text: &str) -> Vec<String> {
         .map(normalize_token)
         .filter(|w| !w.is_empty())
         .collect()
-}
+}// halo bagaimana
 
 pub fn build_word_counts(text: &str) -> HashMap<String, usize> {
     tokenize(text)
