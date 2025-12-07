@@ -1,4 +1,4 @@
-//aktifin kemampuan decode
+//aktifin kemampuan decode (ambil teks pdf nya)
 use base64::{Engine as _, engine::general_purpose};
 
 pub fn extract_text_from_pdf(base64_content: &str) -> Result<String, String> {

@@ -30,11 +30,20 @@ Keunikan solusi yang dikembangkan terletak pada kombinasi tiga aspek. Pertama, N
 ---
 
 ## Background and Concepts
-Dalam era digital saat ini, pengelolaan dan pencarian informasi dari berbagai sumber data menjadi semakin penting. Dengan meningkatnya volume data yang dihasilkan, metode pencarian yang efisien dan efektif menjadi krusial untuk meningkatkan produktivitas. Pencarian teks dalam berkas-berkas besar sering kali menjadi tantangan, terutama ketika pengguna harus berurusan dengan banyak file secara bersamaan.
+Pencarian informasi dalam dokumen digital merupakan salah satu operasi fundamental dalam pengolahan data modern. Seiring dengan pertumbuhan data mulai dari dokumen akademik, laporan teknis kebutuhan akan sistem pencarian yang cepat, akurat, dan scalable menjadi semakin mendesak. Metode konvensional yang mengandalkan pencarian sekuensial (sequential search) pada single-threaded process terbukti tidak efisien ketika berhadapan dengan multiple documents atau teks yang banyak dalam satu tempat.
 
-Konsep pemrograman fungsional menawarkan pendekatan yang berbeda dalam menangani masalah ini. Dengan memanfaatkan fungsi sebagai unit dasar pemrograman, kita dapat menciptakan solusi yang lebih modular, konsisten, dan mudah dipahami. Paradigma ini juga mendorong penggunaan data yang immutable, sehingga dapat mengurangi kesalahan akibat perubahan status yang tidak terduga. Selain itu, penggunaan higher-order functions, iterator chains, dan penanganan error berbasis Option serta Result membuat proses transformasi dan analisis teks menjadi lebih terstruktur dan aman.
+Dalam konteks text processing, pendekatan dengan pemgromgraman fungsional memberikan beberapa keuntungan :
 
-Berikut ini adalah konsep-konsep teoretis yang menjadi dasar dalam pengembangan aplikasi TextSearch, sekaligus mendasari pemilihan teknologi dan arsitektur sistem yang digunakan pada proyek ini.
+1. Immutability
+   Data yang tidak berubah (immutable) memastikan bahwa operasi pencarian tidak mengalami side effects, sehingga hasil pencarian konsisten dan dapat diprediksi.
+
+2. Higher-Order Functions dan Composability
+   Fungsi yang menerima fungsi lain sebagai argumen memungkinkan abstraksi tingkat tinggi dalam pipeline text processing, dari tokenization hingga frequency analysis.
+
+3. Lazy Evaluation dan Iterator Chains
+   Evaluasi malas (lazy evaluation) memungkinkan pemrosesan data besar tanpa memuat seluruh dataset ke memori sekaligus, meningkatkan efisiensi memory footprint.
+
+Berikut ini adalah konsep yang menjadi dasar dalam pengembangan sistem TextSearch, sekaligus mendasari pemilihan teknologi dan arsitektur sistem yang digunakan pada sistem ini.
 
 ### Technology Stack
 
@@ -261,4 +270,4 @@ File ini adalah file utama _frontend_ yang menampilkan halaman utama untuk siste
 ![Screenshot Upload File](./screenshot/result_detail_3.png)
 
 ## Conclusion
-TextSearch berhasil mengimplementasikan sebuah solusi pencarian teks multi-berkas yang memanfaatkan kekuatan Rust dan prinsip pemrograman fungsional. Aplikasi ini mengatasi keterbatasan metode pencarian konvensional dengan menyediakan antarmuka web yang intuitif untuk pencarian unlimited kata kunci secara bersamaan tanpa memerlukan upload file. Dokumen PDF dimuat otomatis dari folder dataset saat server startup, memungkinkan pengguna langsung melakukan pencarian. Penerapan konsep pemrograman fungsional melalui penggunaan iterator chains, higher-order functions, dan data immutability telah menghasilkan kode backend yang mudah diuji dan maintainable. Kombinasi Rust dengan framework Rocket dan library Rayon memungkinkan eksekusi pencarian yang sangat efisien melalui pemanfaatan multi-threading dengan benchmark performa, sementara frontend Vue.js memberikan pengalaman pengguna yang responsif dengan kemampuan highlight hasil pencarian dan snippet konteks. Meskipun telah berfungsi dengan baik, aplikasi ini dapat dikembangkan lebih lanjut dengan penambahan support untuk format file lain atau fitur filtering lanjutan. Secara keseluruhan, proyek ini membuktikan bahwa pendekatan fungsional dalam ekosistem Rust dapat menghasilkan aplikasi yang tidak hanya excellent dalam performa tetapi juga maintainable, scalable, dan user-friendly.
+TextSearch berhasil mengimplementasikan sebuah solusi pencarian teks multi-berkas yang memanfaatkan kekuatan Rust dan prinsip pemrograman fungsional. Sistem ini mengatasi keterbatasan metode pencarian konvensional dengan menyediakan antarmuka web yang intuitif untuk pencarian multi-keyword secara bersamaan. Dokumen PDF dimuat otomatis dari folder dataset saat server startup menggunakan fungsi `load_pdfs_from_dataset`. Penerapan konsep pemrograman fungsional melalui penggunaan iterator chains (`par_iter`, `map`, `filter_map`, `fold`), higher-order functions, dan data immutability telah menghasilkan kode backend yang mudah diuji dan maintainable. Kombinasi Rust dengan framework Rocket dan library Rayon memungkinkan eksekusi pencarian yang sangat efisien melalui pemanfaatan parallel processing (`search_words_parallel`) dengan benchmark performa yang membandingkan parallel vs sequential search, sementara frontend memberikan pengalaman pengguna yang responsif dengan Vue.js. Secara keseluruhan, sistem ini membuktikan bahwa pendekatan fungsional dalam ekosistem Rust dapat menghasilkan sistem yang tidak hanya cepat dalam performa tetapi juga maintainable dan scalable.
