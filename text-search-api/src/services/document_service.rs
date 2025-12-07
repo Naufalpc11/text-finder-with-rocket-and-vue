@@ -1,6 +1,5 @@
 use crate::models::document::{Document, DocId};
 use crate::utils::{build_word_counts, extract_text_from_pdf};
-use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
