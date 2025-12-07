@@ -1,13 +1,14 @@
 # TextSearch: Web Service Pencarian Teks Multi-Berkas Berbasis Rust dan Rocket
 _A Functional Programming Approach with Rust_  
-**Authors:** Abdullah Adiwarman Wildan, Daniel Belawa Koten, Dimas Ramadhani, Naufal Tiarana Putra
+**Authors:**
+1. Abdullah Adiwarman Wildan
+2. Daniel Belawa Koten
+3. Dimas Ramadhani
+4. Naufal Tiarana Putra
 
 ---
 
 ## Abstract
-
-
----
 
 ## Introduction  
 
@@ -59,12 +60,13 @@ Berikut ini adalah konsep yang menjadi dasar dalam pengembangan sistem TextSearc
 - **Tailwind CSS v4.1.17** - Framework CSS utility-first untuk styling yang cepat dan konsisten.
 - **PostCSS & Autoprefixer** - Tools untuk memproses CSS dan menambahkan vendor prefixes secara otomatis.
 
-Aplikasi ini menggunakan Rust untuk backend yang bertugas mencari teks di dalam file secara cepat dengan multi-threading, dan Vue.js untuk frontend yang menampilkan tampilan website agar mudah digunakan. Backend fokus pada kecepatan pemrosesan pencarian, sedangkan frontend fokus pada kemudahan pengguna saat upload file dan melihat hasil pencarian.
+Aplikasi ini menggunakan Rust untuk backend yang bertugas mencari teks di dalam file secara cepat dengan multi-threading, dan Vue.js untuk frontend yang menampilkan tampilan sistem agar mudah digunakan. Backend fokus pada kecepatan pemrosesan pencarian, sedangkan frontend fokus pada kemudahan pengguna saat upload file dan melihat hasil pencarian.
 
 ---
 
 ## Source Code and Explanation
-### Struktur Folder
+
+## Struktur Folder
 ```
 text-finder-with-rocket-and-vue
 ├── report.md
@@ -114,87 +116,140 @@ text-finder-with-rocket-and-vue
             └── HomePage.vue
 ```
 
-### Penjelasan Kode
-#### Backend (./text-search.api)
-Kode ini adalah backend API berbasis Rocket (Rust) yang berfungsi untuk:
-1. Memuat otomatis semua file PDF dari folder dataset saat server startup
-2. Menyimpan dokumen pada memori dengan thread-safe mechanism
-3. Menghitung jumlah kata pada setiap dokumen
-4. Melakukan pencarian kata dengan unlimited keywords di seluruh dokumen
-5. Menampilkan snippet/konteks kemunculan kata
-6. Menghitung statistik dokumen
-7. Mengizinkan akses dari frontend (CORS)
+## Penjelasan Kode
+### Backend (`./text-search.api`)
+_Backend_ dibangun menggunakan kombinasi _Rust, Rocket, Rayon, dan Serde_ yang mengutamakan kecepatan, keamanan dan skalabilitas. _Backend_ terbagi menjadi menjadi beberapa folder, yaitu:
 
-Semua data disimpan menggunakan RwLock + AtomicUsize sehingga thread-safe dan bisa diproses secara paralel dengan Rayon's `par_iter()`
+#### 1. `models`
+Folder models berisi definisi struktur data yang digunakan untuk:
 
-##### Penjelasan Bagian
-Full kode dari _back-end_ dapat dilihat pada file `main.rs` yang berada di `./text-search-api/src/main.rs`
+- Data yang diterima dari _frontend (Request Model)_ pada file `./models/request.rs`
+    - Import
+    ```rs
+    use serde::Deserialize;
+    ```
 
-Berikut adalah sedikit penjelasan kode dari file main.rs
+    - _Struct_: `SearchRequest`
+    ```rs
+    #[derive(Debug, Clone, Deserialize)]
+    pub struct SearchRequest {
+        pub query: String,
+    }
+    ```
 
-###### _Import Library_
-```rs
-extern crate rocket;
-use rocket::*;
-use rayon::prelude::*;
-use std::sync::{RwLock, atomic::{AtomicUsize, Ordering}};
-```
-adalah bagian kode yang berfungsi untuk melakukan _import library_ yang dibutuhkan dengan fungsinya, yaitu sebagai berikut:
-- rocket &rarr; membuat API HTTP
-- rayon &rarr; mempercepat proses dengan paralel
-- RwLock &rarr; menyimpan dokumen secara aman untuk multiple-thread
-- AtomicUsize &rarr; membuat ID dokumen secara otomatis
+- Data yang dikirimkan ke _frontend (Response Model)_ pada file `./models/request.rs`
 
-###### Struktur Data Dokumen
-```rs
-struct Document { id, name, content, word_counts }
-```
-adalah sebuah blok kode yang membuat sebuah stuktur data Dokumen yang meyimpan 1 file yang telah di-upload, termasuk:
-- Isi dokumen
-- Jumlah kemunculan setiap kata
+    - _Import_ yang digunakan
+    ```rs
+    use serde::Serialize;
+    use super::document::DocId;
+    ```
+    
+    - Macro `derive_response!`
+    ```rs
+    macro_rules! derive_response {
+        ($item:item) => {
+            #[derive(Debug, Clone, Serialize)]
+            $item
+        };
+    }
+    ```
+    
+    - _Struct:_ `PeerDocCount`
+    ```rs
+    derive_response!(pub struct PerDocCount {
+        pub doc_id: DocId,
+        pub doc_name: String,
+        pub count: usize,
+        pub snippets: Vec<String>,
+    });
+    ```
 
-###### AppState (Penyimpanan Global)
-```rs
-struct AppState {
-    docs: RwLock<Vec<Document>>,
-    next_id: AtomicUsize,
-}
-```
-adalah database sementara pada memori yang berisi:
-- docs &rarr; daftar semua dokumen
-- next_id &rarr; generator ID dokumen
+    - _Struct_: `WordResult`
+    ```rs
+    derive_response!(pub struct WordResult {
+        pub word: String,
+        pub total_count: usize,
+        pub per_doc: Vec<PerDocCount>,
+    });
+    ```
 
-###### Utiliy Functions
-`normalize_token` &rarr; Membersihkan kata dari simbol dan _lowercase_
+    - _Struct_: `BenchmarkTiming`
+    ```rs
+    derive_response!(pub struct BenchmarkTiming {
+        pub parallel_ms: f64,
+        pub sequential_ms: f64,
+        pub speedup: f64,
+    });
+    ```
 
-`tokenize` &rarr; Memecah teks menjadi daftar kata
+    - _Struct_: `DocumentMatch`
+    ```rs
+    derive_response!(pub struct DocumentMatch {
+        pub doc_id: DocId,
+        pub doc_name: String,
+        pub matched_words: usize,
+    });
+    ```
 
-`build_word_counts` &rarr; Menghitung jumlahs setiap kata dalam teks (HashMap)
+    - _Struct_: `SearchResponse`
+    ```rs
+    derive_response!(pub struct SearchResponse {
+        pub results: Vec<WordResult>,
+        pub benchmark: BenchmarkTiming,
+        pub docs_with_all_words: Vec<DocumentMatch>,
+    });
+    ```
 
-`search_single_word` &rarr; Logika yang mencari satu kata pada seluruh dokumen:
-- filter dokumen yang mengandung kata
-- hitung total kemunculan
-- kembalikan daftar dokumen yang sesuai
+- Representasi entitas (dokumen)
+    
+    - Import
+    ```rs
+    use serde::Serialize;
+    use std::collections::HashMap;
+    ```
 
-###### List Routes
-Berikut adalah list *routes* yang digunakan:
-- `GET /docs` &rarr; Mengambil id dan nama dokumen yang sudah dimuat dari dataset
-- `GET /stats` &rarr; Mengembalikan statistik keseluruhan dokumen
-- `POST /search` &rarr; Mencari unlimited kata secara paralel dengan benchmark timing
-- `GET /cors/<status>` &rarr; Handle CORS preflight requests
+    - Alias: `DocId`
+    ```rs
+    pub type DocId = usize;
+    ```
 
-#### Frontend (./text-search-ui)
-_Frontend_ dibangun menggunakan bahasa pemrograman Vue yang dimana terbagi menjadi 2 bagian/file, yaitu `App.vue` dan `src/HomePage.vue`. Dengan kegunaan sebagai berikut:
+    - _Struct_: `Document`
+    ```rs
+    #[derive(Debug, Clone)]
+    pub struct Document {
+        pub id: DocId,
+        pub name: String,
+        pub content: String,
+        pub word_counts: HashMap<String, usize>,
+    }
+    ```
 
-##### App.vue
-Adalah halaman utama aplikasi Vue yang fungsinya untuk:
+    - _Struct_: `DocumentInfo`
+    ```rs
+    #[derive(Debug, Clone, Serialize)]
+    pub struct DocumentInfo {
+        pub id: DocId,
+        pub name: String,
+    }
+    ```
+
+#### 2. `routes`
+#### 3. `services`
+#### 4. `utils`
+
+### Frontend (`./text-search-ui`)
+_Frontend_ dibangun menggunakan bahasa pemrograman Vue yang dimana terbagi menjadi 2 file, yaitu `App.vue` dan `src/HomePage.vue`. Dengan kegunaan sebagai berikut:
+
+#### 1. `App.vue`
+Adalah halaman utama sistem Vue yang fungsinya untuk:
 1. Menampilkan animasi loading screen selama 1 detik
 2. Menampilkan halaman utama (`HomePage.vue`) setelah loading selesai
 3. Menggunakan TailwindCSS untuk styling dan animasi
-4. Memakain Vue Composition API (`<script setup>`)
+4. Memakai Vue Composition API (`<script setup>`)
 
-##### src/HomePage.vue
-Kode ini adalah kode utama yang menampilkan halaman utama untuk website/aplikasi pencari kata dalam file PDF yang dapat:
+#### 2. `src/HomePage.vue`
+File ini adalah file utama _frontend_ yang menampilkan halaman utama untuk sistem pencari kata dalam file PDF yang dapat:
 1. Menampilkan daftar dokumen dari dataset yang sudah tersedia di server
 2. Mencari unlimited kata kunci sekaligus
 3. Menampilkan jumlah kemunculan setiap kata di setiap dokumen

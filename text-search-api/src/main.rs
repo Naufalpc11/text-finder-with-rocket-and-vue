@@ -36,7 +36,7 @@ fn build_rocket() -> Rocket<Build> {
 
     // Load PDFs from dataset folder at startup
     println!("Loading PDFs from dataset folder...");
-    let dataset_path = r"d:\Semester 5\PF\Tubes\Text-Finder\dataset";
+    let dataset_path = r"C:\FP\text-finder-with-rocket-and-vue\dataset";
     let documents = load_pdfs_from_dataset(dataset_path);
     let doc_count = documents.len();
     
