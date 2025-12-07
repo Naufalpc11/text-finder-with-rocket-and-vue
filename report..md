@@ -5,21 +5,28 @@ _A Functional Programming Approach with Rust_
 ---
 
 ## Abstract
-TextSearch adalah sebuah web service pencarian teks multi-berkas yang dibangun menggunakan bahasa pemrograman Rust dengan framework Rocket pada sisi backend dan Vue.js pada sisi frontend. Aplikasi ini memungkinkan pengguna mengunggah 2 hingga 6 berkas teks (.txt), kemudian melakukan pencarian hingga dua kata kunci secara bersamaan, menampilkan jumlah kemunculan kata per dokumen, serta konteks baris dengan highlight pada setiap kata yang ditemukan. Di sisi backend, TextSearch memanfaatkan crate Rayon untuk melakukan pemrosesan paralel di level CPU, baik saat proses parsing dan indexing kata ketika beberapa berkas diunggah sekaligus, maupun saat pencarian multi-kata kunci pada seluruh dokumen. Prinsip-prinsip pemrograman fungsional diterapkan melalui penggunaan iterator chains, higher-order functions, pengolahan data yang sebisa mungkin immutable, serta pemanfaatan tipe Option dan Result untuk penanganan error yang eksplisit dan aman. Kombinasi antara Rust, Rocket, Rayon, dan Vue.js menghasilkan sebuah prototipe layanan pencarian teks yang tidak hanya responsif dan efisien, tetapi juga memiliki struktur kode yang lebih modular, mudah diuji, dan siap untuk dikembangkan lebih lanjut.
+
 
 ---
 
 ## Introduction  
 
-Perkembangan teknologi informasi membuat volume data tekstual yang dihasilkan pengguna meningkat sangat pesat, mulai dari catatan kuliah, log aplikasi, hingga dokumentasi proyek. Namun, proses pencarian teks secara manual pada banyak berkas (`.txt`) masih sering dilakukan dengan cara tradisional: membuka satu per satu file dan menggunakan fitur *find* bawaan editor. Pendekatan ini memakan waktu, rawan kesalahan, dan tidak efisien ketika jumlah file sudah mencapai beberapa buah dengan ukuran yang cukup besar.  
+### Problem Statement
+Perkembangan teknologi informasi membuat volume data tekstual yang dihasilkan pengguna meningkat sangat pesat, mulai dari catatan kuliah, log aplikasi, hingga dokumentasi proyek. Namun, proses pencarian teks secara manual pada banyak berkas (`.pdf`) masih sering dilakukan dengan cara tradisional: membuka satu per satu file dan menggunakan fitur *find* bawaan editor. Pendekatan ini memakan waktu, rawan kesalahan, dan tidak efisien ketika jumlah file sudah mencapai beberapa buah dengan ukuran yang cukup besar. Khususnya, pengguna tidak dapat melakukan pencarian multi-keyword secara bersamaan atau melihat konteks kemunculan kata tanpa membaca seluruh dokumen.
 
-Berdasarkan permasalahan tersebut, proyek ini mengusulkan sebuah **aplikasi *Text Search Tool*** yang memungkinkan pengguna mengunggah 2 hingga 6 berkas teks kemudian melakukan pencarian hingga dua kata kunci secara bersamaan. Aplikasi tidak hanya menghitung jumlah kemunculan kata di setiap berkas, tetapi juga menampilkan potongan kalimat yang relevan serta menyorot (*highlight*) kata yang dicari. Dengan demikian, pengguna dapat memperoleh konteks kemunculan kata secara cepat tanpa harus membaca seluruh isi dokumen.  
+### Proposed Solution
+Berdasarkan permasalahan tersebut, proyek ini mengusulkan sebuah **aplikasi *Text Search Tool*** yang memungkinkan pengguna melakukan pencarian dengan unlimited kata kunci secara bersamaan. Aplikasi tidak hanya menghitung jumlah kemunculan kata di setiap berkas, tetapi juga menampilkan potongan kalimat yang relevan serta menyorot (*highlight*) kata yang dicari. Dokumen PDF sudah tersedia dalam folder dataset server, sehingga pengguna dapat langsung melakukan pencarian tanpa perlu mengunggah file terlebih dahulu. Dengan demikian, pengguna dapat memperoleh konteks kemunkulan kata secara cepat tanpa harus membaca seluruh isi dokumen.
 
-Bahasa pemrograman **Rust** dipilih karena menawarkan kombinasi kinerja tinggi, keamanan memori, serta dukungan yang baik terhadap pemrograman *concurrent* dan *parallel*. Hal ini penting karena proses pencarian teks pada beberapa berkas dirancang untuk dijalankan secara **paralel di level CPU** dengan memanfaatkan **multi-threading** dan *parallel iterator* dari crate **Rayon**: saat pengguna mengunggah sedikitnya dua berkas, setiap berkas dapat diproses pada *thread* yang berbeda, dan ketika pengguna mencari lebih dari satu kata kunci, pencarian untuk tiap kata dijalankan secara paralel di seluruh dokumen.  
+### Why Rust?
+Bahasa pemrograman **Rust** dipilih karena menawarkan kombinasi yang ideal untuk aplikasi text processing: **(1) Kinerja tinggi** dengan performa yang sebanding dengan C/C++ namun lebih aman, **(2) Keamanan memori** yang mencegah data races dan memory leaks secara otomatis di compile-time, dan **(3) Dukungan excellent terhadap pemrograman concurrent dan parallel**. Hal ini penting karena proses pencarian teks pada beberapa berkas dirancang untuk dijalankan secara **paralel di level CPU** dengan memanfaatkan **multi-threading** dan *parallel iterator* dari crate **Rayon**: saat server startup, semua file PDF dari folder dataset dimuat ke dalam memori, dan ketika pengguna melakukan pencarian dengan lebih dari satu kata kunci, pencarian untuk tiap kata dijalankan secara paralel di seluruh dokumen. Kombinasi ini memastikan aplikasi berjalan cepat sambil tetap aman dari concurrency bugs.
 
-Integrasi konsep **pemrograman fungsional** dalam proyek ini diwujudkan melalui penggunaan *iterator*, fungsi-fungsi tingkat tinggi (*higher-order functions*), pemrosesan data yang bersifat *immutable* sebisa mungkin. Pendekatan ini membuat alur transformasi teks—mulai dari pembacaan berkas, pemecahan baris, normalisasi kata, hingga perhitungan frekuensi—menjadi lebih deklaratif, ringkas, dan mudah diuji. Dengan demikian, prinsip-prinsip pemrograman fungsional tidak hanya menjadi konsep teoretis, tetapi benar-benar diaplikasikan dalam desain logika aplikasi yang berjalan di atas eksekusi multi-threaded.  
+### Functional Programming Integration
+Integrasi konsep pemrograman fungsional dalam proyek ini bukan hanya implementasi teknis, tetapi pilihan desain yang konsisten untuk meningkatkan maintainability dan testability. Alasan memilih FP yaitu Immutability dan Pure Functions mengurangi bugs yang sulit dilacak, Higher-Order Functions dan Iterator Chains membuat transformasi data lebih deklaratif dan ringkas, dan Composability memudahkan unit testing dan code reuse. Pendekatan ini membuat alur transformasi teks mulai dari ekstraksi teks PDF, pemecahan kalimat, normalisasi kata, hingga perhitungan frekuensi menjadi lebih deklaratif, ringkas, dan mudah diuji. Dengan demikian, prinsip-prinsip pemrograman fungsional tidak hanya menjadi konsep teoretis, tetapi benar-benar diaplikasikan dalam desain logika aplikasi yang berjalan di atas eksekusi multi-threaded.
 
-Keunikan solusi yang dikembangkan ada pada kombinasi **Rust sebagai backend dengan kerangka kerja web Rocket** serta **antarmuka frontend berbasis Vue**. Backend bertanggung jawab terhadap pemrosesan teks yang intensif secara komputasi sekaligus mengelola eksekusi paralel di beberapa *thread*, sementara frontend memberikan pengalaman interaktif berupa unggah berkas, form pencarian, serta tampilan hasil dengan *highlight* kata kunci. Pemisahan yang jelas antara lapisan logika dan presentasi, ditambah penerapan prinsip pemrograman fungsional dan pemanfaatan multi-threading di level CPU, menjadikan proyek ini tidak hanya relevan sebagai tugas akhir mata kuliah Pemrograman Fungsional, tetapi juga berpotensi dikembangkan lebih lanjut sebagai alat bantu praktis dalam analisis teks.  
+### What Makes This Solution Unique?
+Keunikan solusi yang dikembangkan terletak pada kombinasi tiga aspek. Pertama, No-Upload Paradigm dokumen PDF pre-loaded dari server pada startup, memungkinkan pencarian instant tanpa delay upload, Functional Architecture backend dibangun dengan pure functions dan immutable data yang memudahkan parallel processing, dan Multi-Level Parallelism pencarian per-keyword berjalan paralel (Rayon), berbeda dengan sistem tradisional yang hanya paralel di level dokumen. Integrasi Rust + Rocket + Vue.js menghasilkan stack yang powerful namun maintainable, dengan frontend yang responsif dan backend yang thread-safe tanpa overhead yang berat.
+
+Keunikan solusi yang dikembangkan ada pada kombinasi Rust sebagai backend dengan kerangka kerja web Rocket serta antarmuka frontend berbasis Vue. Backend secara otomatis memuat semua file PDF dari folder dataset saat server startup, sementara frontend memberikan pengalaman interaktif berupa form pencarian unlimited keywords dan tampilan hasil dengan *highlight* kata kunci serta snippet konteks. Pemisahan yang jelas antara lapisan logika dan presentasi, ditambah penerapan prinsip pemrograman fungsional dan pemanfaatan multi-threading di level CPU, menjadikan proyek ini tidak hanya relevan sebagai tugas akhir mata kuliah Pemrograman Fungsional, tetapi juga berpotensi dikembangkan lebih lanjut sebagai alat bantu praktis dalam analisis teks.  
 
 ---
 
@@ -104,13 +111,13 @@ text-finder-with-rocket-and-vue
 ### Penjelasan Kode
 #### Backend (./text-search.api)
 Kode ini adalah backend API berbasis Rocket (Rust) yang berfungsi untuk:
-1. Upload file berisi teks
-2. Menyimpan dokumen pada memori
+1. Memuat otomatis semua file PDF dari folder dataset saat server startup
+2. Menyimpan dokumen pada memori dengan thread-safe mechanism
 3. Menghitung jumlah kata pada setiap dokumen
-4. Melakukan pencarian kata di seluruh dokumen
-5. Menghapus dokumen satu per satu atau semuanya
+4. Melakukan pencarian kata dengan unlimited keywords di seluruh dokumen
+5. Menampilkan snippet/konteks kemunculan kata
 6. Menghitung statistik dokumen
-7. mengizinkan akses dari frontend (CORS)
+7. Mengizinkan akses dari frontend (CORS)
 
 Semua data disimpan menggunakan RwLock + AtomicUsize sehingga thread-safe dan bisa diproses secara paralel dengan Rayon's `par_iter()`
 
@@ -164,13 +171,11 @@ adalah database sementara pada memori yang berisi:
 - kembalikan daftar dokumen yang sesuai
 
 ###### List Routes
-Berikut adalah list _routes_ yang digunakan:
-- `POST /upload` &rarr; Upload beberapa file sekaligus
-- `GET /docs` &rarr; Mengambil id dan nama dokumen
+Berikut adalah list *routes* yang digunakan:
+- `GET /docs` &rarr; Mengambil id dan nama dokumen yang sudah dimuat dari dataset
 - `GET /stats` &rarr; Mengembalikan statistik keseluruhan dokumen
-- `POST /search` &rarr; Mencari satu atau banyak kata
-- `DELETE /docs/<id>` &rarr; Menghapus dokumen tertentu berdasarkan ID.
-- `DELETE /docs` &rarr; Menghapus semua dokumen dan reset `next_id` menjadi 0
+- `POST /search` &rarr; Mencari unlimited kata secara paralel dengan benchmark timing
+- `GET /cors/<status>` &rarr; Handle CORS preflight requests
 
 #### Frontend (./text-search-ui)
 _Frontend_ dibangun menggunakan bahasa pemrograman Vue yang dimana terbagi menjadi 2 bagian/file, yaitu `App.vue` dan `src/HomePage.vue`. Dengan kegunaan sebagai berikut:
@@ -183,12 +188,13 @@ Adalah halaman utama aplikasi Vue yang fungsinya untuk:
 4. Memakain Vue Composition API (`<script setup>`)
 
 ##### src/HomePage.vue
-Kode ini adalah kode utama yang menampilkan halaman utama untuk website/aplikasi pencari kata dalam beberapa file .txt yang dapat:
-1. Upload 2-6 file
-2. Mencari 2 kata sekaligus
-3. Menampilkan jumlah kemunculan
-4. Menampilkan file yang tidak mengandung, mengandung kedua kata dan mengandung satu kata
-5. Menampilkan 3 konteks baris per kata
+Kode ini adalah kode utama yang menampilkan halaman utama untuk website/aplikasi pencari kata dalam file PDF yang dapat:
+1. Menampilkan daftar dokumen dari dataset yang sudah tersedia di server
+2. Mencari unlimited kata kunci sekaligus
+3. Menampilkan jumlah kemunculan setiap kata di setiap dokumen
+4. Menampilkan dokumen yang mengandung SEMUA kata yang dicari dengan indikator visual
+5. Menampilkan maksimal 3 snippet/konteks per kata dengan highlight pada kata yang dicari
+6. Menampilkan benchmark performa antara parallel vs sequential search
 
 ## Screenshot
 ### Halaman Awal (telah disediakan 2 file .pdf)
@@ -203,4 +209,4 @@ Kode ini adalah kode utama yang menampilkan halaman utama untuk website/aplikasi
 ![Screenshot Upload File](./screenshot/result_detail_3.png)
 
 ## Conclusion
-TextSearch berhasil mengimplementasikan sebuah solusi pencarian teks multi-berkas dan dgn 2 search bar yang memanfaatkan kekuatan Rust dan prinsip pemrograman fungsional. Aplikasi ini mampu mengatasi keterbatasan metode pencarian biasa dengan menyediakan antarmuka web yang intuitif untuk mengunggah 2 hingga 6 file teks sekaligus dan melakukan pencarian paralel untuk beberapa kata kunci. Penerapan konsep pemrograman fungsional melalui penggunaan iterator chains, higher-order functions, dan data immutability telah menghasilkan kode backend yang mudah diuji. Kombinasi Rust dengan framework Rocket dan library Rayon memungkinkan eksekusi pencarian yang sangat efisien melalui pemanfaatan multi-threading, sementara frontend Vue.js memberikan pengalaman pengguna yang responsif dengan kemampuan highlight hasil pencarian. Meskipun telah berfungsi dengan baik, aplikasi ini dapat dikembangankan lebih lanjut seperti dgn penambahan support untuk format file lain. Secara keseluruhan, proyek ini membuktikan bahwa pendekatan fungsional dalam ekosistem Rust dapat menghasilkan aplikasi yang tidak hanya bagus secara performa tetapi juga maintainable dan scalable.
+TextSearch berhasil mengimplementasikan sebuah solusi pencarian teks multi-berkas yang memanfaatkan kekuatan Rust dan prinsip pemrograman fungsional. Aplikasi ini mengatasi keterbatasan metode pencarian konvensional dengan menyediakan antarmuka web yang intuitif untuk pencarian unlimited kata kunci secara bersamaan tanpa memerlukan upload file. Dokumen PDF dimuat otomatis dari folder dataset saat server startup, memungkinkan pengguna langsung melakukan pencarian. Penerapan konsep pemrograman fungsional melalui penggunaan iterator chains, higher-order functions, dan data immutability telah menghasilkan kode backend yang mudah diuji dan maintainable. Kombinasi Rust dengan framework Rocket dan library Rayon memungkinkan eksekusi pencarian yang sangat efisien melalui pemanfaatan multi-threading dengan benchmark performa, sementara frontend Vue.js memberikan pengalaman pengguna yang responsif dengan kemampuan highlight hasil pencarian dan snippet konteks. Meskipun telah berfungsi dengan baik, aplikasi ini dapat dikembangkan lebih lanjut dengan penambahan support untuk format file lain atau fitur filtering lanjutan. Secara keseluruhan, proyek ini membuktikan bahwa pendekatan fungsional dalam ekosistem Rust dapat menghasilkan aplikasi yang tidak hanya excellent dalam performa tetapi juga maintainable, scalable, dan user-friendly.
