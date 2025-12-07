@@ -34,7 +34,7 @@ fn build_rocket() -> Rocket<Build> {
     .to_cors()
     .expect("error building CORS");
 
-    // Load PDFs from dataset folder at startup
+    // Load PDF dari dataset folder pas startup
     println!("Loading PDFs from dataset folder...");
     let dataset_path = r"C:\FP\text-finder-with-rocket-and-vue\dataset";
     let documents = load_pdfs_from_dataset(dataset_path);

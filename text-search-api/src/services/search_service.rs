@@ -48,7 +48,7 @@ pub fn search_single_word(docs: &[Document], raw_word: &str) -> WordResult {
         .collect();
 
     let total_count = calculate_total_count(&per_doc);
-    //kompilasi pas debug ja
+    //kompilasi pas debug
     #[cfg(debug_assertions)]
     {
         let recursive_total = count_word_recursive(docs, &word, 0, 0);

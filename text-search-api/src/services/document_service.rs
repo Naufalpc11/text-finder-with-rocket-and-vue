@@ -26,7 +26,6 @@ pub fn load_pdfs_from_dataset(dataset_path: &str) -> Vec<Document> {
 
     println!("Found {} PDF files in dataset folder", pdf_files.len());
 
-    // Process files sequentially to avoid panic in parallel threads
     let processed: Vec<(String, String, HashMap<String, usize>)> = pdf_files
         .iter()
         .filter_map(|entry| process_pdf_file(&entry.path()))
@@ -98,7 +97,7 @@ pub fn create_document(
     }
 }
 
-//menghitung statistik dokumen (kek jumlah dokumen odf, total jumlah kata, ukuran teks dll)
+//menghitung statistik dokumen (jumlah dokumen odf, total jumlah kata, ukuran teks dll)
 pub fn calculate_doc_stats(docs: &[Document]) -> (usize, usize, usize, f64) {
     let total_docs = docs.len();
     let total_words: usize = docs
