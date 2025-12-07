@@ -53,52 +53,51 @@ Aplikasi ini menggunakan Rust untuk backend yang bertugas mencari teks di dalam 
 ### Struktur Folder
 ```
 text-finder-with-rocket-and-vue
-├── dataset
-|   ├── random_1.txt
-|   ├── random_2.txt
-|   ├── random_3.txt
-|   ├── random_4.txt
-|   ├── random_5.txt
-|   └── random_6.txt
-├── screenshot
-|   ├── result_detail_1.png
-|   ├── result_detail_2.png
-|   ├── result_detail_3.png
-|   ├── result_detail_4.png
-|   ├── result_detail_6.png
-|   ├── result_word.png
-|   ├── search_2_word.png
-|   └── upload_file_txt.png
-├── text-search-api
-|   ├── src
-|   |   └── main.rs
-|   ├── .gitignore
-|   ├── Cargo.lock
-|   └── Cargo.toml
-├── text-search-ui
-|   ├── .vscode
-|   |   └── extensions.json
-|   ├── public
-|   |   └── favicon.ico
-|   ├── src
-|   |   ├── assets
-|   |   |   └── Icontextfinder.png
-|   |   ├── views
-|   |   |   └── HomePage.vue
-|   |   ├── api.js
-|   |   ├── App.vue
-|   |   ├── main.js
-|   |   └── style.css
-|   ├── .gitignore
-|   ├── index.html
-|   ├── jsconfig.json
-|   ├── package-lock.json
-|   ├── package.json
-|   ├── postcss.config.json
-|   ├── README.md
-|   ├── tailwind.config.js
-|   └── vite.config.js
-└── report.md
+├── report.md
+├── dataset/
+│   ├── (Buku) Buku ajar keprofesian informatika.pdf
+│   └── Analisis_Sentimen_Transportasi_Online_pa.pdf
+├── screenshot/
+│   ├── result_detail_1.png
+│   ├── result_detail_2.png
+│   ├── result_detail_3.png
+│   ├── result_word.png
+│   ├── search_2_word.png
+│   └── upload_file_pdf.png
+├── text-search-api/
+│   └── src/
+│       ├── main.rs
+│       ├── models/
+│       │   ├── document.rs
+│       │   ├── mod.rs
+│       │   ├── request.rs
+│       │   └── response.rs
+│       ├── routes/
+│       │   ├── document_routes.rs
+│       │   ├── mod.rs
+│       │   └── search_routes.rs
+│       ├── services/
+│       │   ├── document_service.rs
+│       │   ├── mod.rs
+│       │   └── search_service.rs
+│       └── utils/
+│           ├── mod.rs
+│           ├── pdf_handler.rs
+│           └── text_processor.rs
+└── text-search-ui/
+    ├── index.html
+    ├── jsconfig.json
+    ├── tailwind.config.js
+    ├── vite.config.js
+    ├── public/
+    └── src/
+        ├── api.js
+        ├── App.vue
+        ├── main.js
+        ├── style.css
+        ├── assets/
+        └── views
+            └── HomePage.vue
 ```
 
 ### Penjelasan Kode
