@@ -201,7 +201,7 @@ Folder models berisi definisi struktur data yang digunakan untuk:
     });
     ```
 
-- Representasi entitas (dokumen)
+- Representasi entitas dokumen (`./models/document.rs`)
     
     - Import
     ```rs
@@ -235,8 +235,565 @@ Folder models berisi definisi struktur data yang digunakan untuk:
     ```
 
 #### 2. `routes`
+Folder yang menyimpan fungsi-fungsi yang menangani permintaan/_request_ HTTP
+
+- Route Dokumen (`./routes/document_routes.rs`)
+
+    - Import awal
+    ```rs
+    use rocket::{State, serde::json::Json};
+    use crate::models::document::DocumentInfo;
+    use crate::services::calculate_doc_stats;
+    use crate::AppState;
+    ```
+
+    #### Endpoint 1: `/docs`
+    ```rs
+    #[get("/docs")]
+    pub fn list_docs(state: &State<AppState>) -> Json<Vec<DocumentInfo>>
+    ```
+    a. Akses daftar dokumen
+    ```rs
+    let docs_guard = state.docs.read().expect("RwLock poisoned");
+    ```
+
+    b. Memetakan Dokumen
+    ```rs
+    let list = docs_guard
+        .iter()
+        .map(|d| DocumentInfo {
+            id: d.id,
+            name: d.name.clone(),
+        })
+        .collect();
+    ```
+    
+    #### Endpoint 2: `/stats`
+    ```rs
+    #[get("/stats")]
+    pub fn get_stats(state: &State<AppState>) -> Json<serde_json::Value>
+    ```
+
+    a. Akses dokumen
+    ```rs
+    let docs_guard = state.docs.read().expect("RwLock poisoned");
+    ```
+
+    b. Menghitung statistik
+    ```rs
+    let (total_docs, total_words, total_bytes, avg_words) = calculate_doc_stats(&docs_guard);
+    ```
+
+    c. Mengirim JSON dinamis
+    ```rs
+    Json(serde_json::json!({
+        "total_documents": total_docs,
+        "total_words": total_words,
+        "total_bytes": total_bytes,
+        "average_words_per_doc": avg_words,
+    }))
+    ```
+
+- Route Search (`./routes/search_routes.rs`)
+
+    - Import
+    ```rs
+    use rocket::{State, serde::json::Json};
+    use crate::models::request::SearchRequest;
+    use crate::models::response::{SearchResponse, BenchmarkTiming, DocumentMatch};
+    use crate::services::{search_words_parallel, search_words_sequential};
+    use crate::services::search_service::{split_query_into_words, find_docs_with_all_words};
+    use crate::AppState;
+    use std::time::Instant;
+    ```
+
+    - Deklarasi Route (`/search`)
+    ```rs
+    #[post("/search", format = "json", data = "<req>")]
+    pub fn search(state: &State<AppState>, req: Json<SearchRequest>) -> Json<SearchResponse>
+    ```
+
+    - Memecah _Query_ menjadi Kata
+    ```rs
+    let words = split_query_into_words(&req.query);
+    ```
+
+    - Mengambil Data Dokumen
+    ```rs
+    let docs_guard = state.docs.read().expect("RwLock poisoned");
+    ```
+
+    - Benchmark 1 - _Parallel Search_
+    ```rs
+    let start_parallel = Instant::now();
+    let results_parallel = if words.len() <= 1 {
+        search_words_sequential(&docs_guard, &words)
+    } else {
+        search_words_parallel(&docs_guard, &words)
+    };
+    let parallel_duration = start_parallel.elapsed();
+    ```
+
+    - Benchmark 2 - _Sequential Search_
+    ```rs
+    let start_sequential = Instant::now();
+    let _results_sequential = search_words_sequential(&docs_guard, &words);
+    let sequential_duration = start_sequential.elapsed();
+    ```
+
+    - Menghitung Speedup
+    ```rs
+    let parallel_ms = parallel_duration.as_secs_f64() * 1000.0;
+    let sequential_ms = sequential_duration.as_secs_f64() * 1000.0;
+    let speedup = if parallel_ms > 0.0 {
+        sequential_ms / parallel_ms
+    } else {
+        1.0
+    };
+    ```
+
+    - Mencari dokumen yang mengandung semua kata
+    ```rs
+    let docs_with_all = find_docs_with_all_words(&docs_guard, &words);
+    ```
+
+    - Mengubah ke struct `DocumentMatch`
+    ```rs
+    let docs_with_all_words: Vec<DocumentMatch> = docs_with_all.into_iter()
+        .map(|(id, name, matched)| DocumentMatch {
+            doc_id: id,
+            doc_name: name,
+            matched_words: matched,
+        })
+        .collect();
+    ```
+
+    - Mengembalikan JSON Response
+    ```rs
+    Json(SearchResponse {
+        results: results_parallel,
+        benchmark: BenchmarkTiming {
+            parallel_ms,
+            sequential_ms,
+            speedup,
+        },
+        docs_with_all_words,
+    })
+    ```
+
 #### 3. `services`
+Folder yang berisi implementasi logika sistem
+
+- Service Dokumen (`./services/document_service.rs`)
+
+    - Import
+    ```rs
+    use crate::models::document::{Document, DocId};
+    use crate::utils::{build_word_counts, extract_text_from_pdf};
+    use std::collections::HashMap;
+    use std::fs;
+    use std::path::Path;
+    use std::panic;
+    ```
+
+    #### Fungsi `load_pdfs_from_dataset`
+    ```rs
+    pub fn load_pdfs_from_dataset(dataset_path: &str) -> Vec<Document>
+    ```
+
+    - Cek apakah folder dataset valid
+    ```rs
+    let path = Path::new(dataset_path);
+
+    if !path.exists() || !path.is_dir() {
+        eprintln!("Warning: Dataset folder not found at {}", dataset_path);
+        return Vec::new();
+    }
+    ```
+
+    - Membaca seluruh file PDF
+    ```rs
+    let pdf_files: Vec<_> = fs::read_dir(path)
+        .expect("Failed to read dataset directory")
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| {
+            entry.path().extension()
+                .and_then(|ext| ext.to_str())
+                .map(|ext| ext.eq_ignore_ascii_case("pdf"))
+                .unwrap_or(false)
+        })
+        .collect();
+    ```
+
+    - Memproses setiap PDF 1 per 1
+    ```rs
+    let processed: Vec<(String, String, HashMap<String, usize>)> = pdf_files
+        .iter()
+        .filter_map(|entry| process_pdf_file(&entry.path()))
+        .collect();
+    ```
+
+    - Mengubah hasil menjadi struct Document
+    ```rs
+    processed
+        .into_iter()
+        .enumerate()
+        .map(|(idx, (name, content, word_counts))| {
+            create_document(idx, name, content, word_counts)
+        })
+        .collect()
+    ```
+
+    #### Fungsi `process_pdf_file`
+
+    - Mengambil nama file
+    ```rs
+    let filename = path.file_name()?.to_str()?.to_string();
+    ```
+
+    - Membaca file PDF menjadi bytes
+    ```rs
+    let file_bytes = match fs::read(path)
+    ```
+
+    - Encoding Base64
+    ```rs
+    let base64_content = base64::Engine::encode(
+        &base64::engine::general_purpose::STANDARD,
+        &file_bytes
+    );
+    ```
+
+    - Menagkap panic dari library ekstraksi
+    ```rs
+    let content = match panic::catch_unwind(|| extract_text_from_pdf(&base64_content))
+    ```
+
+    - Cek apakah isi teks kosong
+    ```rs
+    if content.trim().is_empty() {
+        eprintln!("Warning: No text content in {}, skipping...", filename);
+        return None;
+    }
+    ```
+
+    - Hitung jumlah kata
+    ```rs
+    let word_counts = build_word_counts(&content);
+    ```
+
+    - Kembalikan data mentah
+    ```rs
+    Some((filename, content, word_counts))
+    ```
+
+    #### Fungsi `create_document`
+
+    ```rs
+    pub fn create_document(
+        id: DocId,
+        name: String,
+        content: String,
+        word_counts: HashMap<String, usize>,
+    ) -> Document
+    ```
+
+    #### Fungsi `calculate_doc_stats`
+    - Total dokumen
+    ```rs
+    let total_docs = docs.len();
+    ```
+
+    - Total seluruh kata
+    ```rs
+    let total_words: usize = docs
+        .iter()
+        .map(|doc| doc.word_counts.values().sum::<usize>())
+        .sum();
+    ```
+
+    - Total ukuran teks
+    ```rs
+    let total_bytes: usize = docs.iter().map(|d| d.content.len()).sum();
+    ```
+
+    - Rata-rata kata per dokumen
+    ```rs
+    let avg_words = if total_docs > 0 {
+        total_words as f64 / total_docs as f64
+    } else { 0.0 };
+    ```
+
+    - Kembalikan sebagai tuple
+    ```rs
+    (total_docs, total_words, total_bytes, avg_words)
+    ```
+
+- Search Service (`./services/search_service.rs`)
+
+    #### Fungsi `split_query_into_words`
+    ```rs
+    pub fn split_query_into_words(query: &str) -> Vec<String> {
+        query
+            .split_whitespace()
+            .map(|w| w.trim().to_string())
+            .filter(|w| !w.is_empty())
+            .collect()
+    }
+    ```
+
+    - Pencarian Paralel (Rayon)
+    ```rs
+    pub fn search_words_parallel(docs: &[Document], words: &[String]) -> Vec<WordResult> {
+        words
+            .par_iter()
+            .map(|w| search_single_word(docs, w))
+            .collect()
+    }
+    ```
+
+    #### Pencarian Sequential
+    ```rs
+    pub fn search_words_sequential(docs: &[Document], words: &[String]) -> Vec<WordResult> {
+        words
+            .iter()
+            .map(|w| search_single_word(docs, w))
+            .collect()
+    }
+    ```
+
+    #### Fungsi `search_single_word`
+    ```rs
+    pub fn search_single_word(docs: &[Document], raw_word: &str) -> WordResult
+    ```
+
+    - Normalisasi
+    ```rs
+    let word = normalize_token(raw_word);
+    ```
+
+    - Cari kata di setiap dokumen
+    ```rs
+    let per_doc: Vec<PerDocCount> = docs
+        .iter()
+        .filter_map(|doc| {
+            doc.word_counts.get(&word).copied().and_then(|count| {
+                if count > 0 {
+                    let snippets = extract_snippets(&doc.content, raw_word, 3);
+                    Some(PerDocCount {
+                        doc_id: doc.id,
+                        doc_name: doc.name.clone(),
+                        count,
+                        snippets,
+                    })
+                } else {
+                    None
+                }
+            })
+        })
+        .collect();
+    ```
+
+    - Hitung total seluruh dokumen
+    ```rs
+    let total_count = calculate_total_count(&per_doc);
+    ```
+
+    - Debug check
+    ```rs
+    #[cfg(debug_assertions)]
+    {
+        let recursive_total = count_word_recursive(docs, &word, 0, 0);
+        debug_assert_eq!(total_count, recursive_total);
+    }
+    ```
+
+    - Kembalikan hasil
+    ```rs
+    WordResult {
+        word,
+        total_count,
+        per_doc,
+    }
+    ```
+
+    #### Hitung total count
+    ```rs
+    fn calculate_total_count(per_doc: &[PerDocCount]) -> usize {
+        per_doc.iter().map(|pd| pd.count).sum()
+    }
+    ```
+
+    #### Membuat snippet
+    ```rs
+    fn extract_snippets(content: &str, search_word: &str, max_snippets: usize) -> Vec<String>
+    ```
+
+    #### Fungsi `find_docs_with_all_words`
+    ```rs
+    pub fn find_docs_with_all_words(docs: &[Document], words: &[String]) -> Vec<(usize, String, usize)>
+    ```
+
+    #### Debug: rekursif menghitung data
+    ```rs
+    fn count_word_recursive(docs: &[Document], word: &str, index: usize, acc: usize) -> usize
+    ```
+
 #### 4. `utils`
+Folder ini berisi fungsi kecil yang sifatnya umun dan tidak masuk kategori model atau service
+
+- Handler PDF (`./utils/pdf_handler.rs`)
+
+    - Import library
+    ```rs
+    use base64::{Engine as _, engine::general_purpose};
+    ```
+
+    - Deklarasi fungsi `extract_text_from_pdf`
+    ```rs
+    pub fn extract_text_from_pdf(base64_content: &str) -> Result<String, String>
+    ```
+
+    - Decode Base64 menjadi bytes PDF
+    ```rs
+    let pdf_bytes = general_purpose::STANDARD
+        .decode(base64_content)
+        .map_err(|e| format!("Failed to decode base64: {}", e))?;
+    ```
+
+    - Extract teks dari PDF ke memory
+    ```rs
+    pdf_extract::extract_text_from_mem(&pdf_bytes)
+        .map_err(|e| format!("Failed to extract PDF text: {}", e))
+    ```
+
+- Processor text (`./utils/text_processor.rs`)
+
+    - Fungsi `normalize_token`
+    ```rs
+    pub fn normalize_token(token: &str) -> String {
+        token
+            .chars()
+            .filter(|c| c.is_alphanumeric())
+            .collect::<String>()
+            .to_lowercase()
+    }
+    ```
+
+    - Fungsi `tokenize`
+    ```rs
+        pub fn tokenize(text: &str) -> Vec<String> {
+        text.split_whitespace()
+            .map(normalize_token)
+            .filter(|w| !w.is_empty())
+            .collect()
+    }
+    ```
+
+    - Fungsi `build_word_counts`
+    ```rs
+    pub fn build_word_counts(text: &str) -> HashMap<String, usize> {
+        tokenize(text)
+            .into_iter()
+            .fold(HashMap::new(), |mut acc, word| {
+                *acc.entry(word).or_insert(0) += 1;
+                acc
+            })
+    }
+    ```
+
+#### 5. `main.rs`
+- Import dan deklarasi module
+```rs
+#[macro_use]
+extern crate rocket;
+
+mod models;
+mod routes;
+mod services;
+mod utils;
+```
+
+- Import tambahan
+```rs
+use models::Document;
+use rocket::{Build, Rocket};
+use rocket_cors::{AllowedOrigins, CorsOptions};
+use services::load_pdfs_from_dataset;
+use std::sync::{
+    RwLock,
+    atomic::AtomicUsize,
+};
+```
+
+- _Shared state global (`AppState`)_
+```rs
+pub struct AppState {
+    pub docs: RwLock<Vec<Document>>,
+    pub next_id: AtomicUsize,
+}
+```
+
+- Fungsi `build_rocket()`
+    - _Setup CORS_
+    ```rs
+    let allowed_origins = AllowedOrigins::some_exact(&[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]);
+
+    let cors = CorsOptions {
+        allowed_origins,
+        allow_credentials: true,
+        ..Default::default()
+    }
+    .to_cors()
+    .expect("error building CORS");
+    ```
+
+    - Load PDF saat startup
+    ```rs
+    println!("Loading PDFs from dataset folder...");
+    let dataset_path = r"C:\FP\text-finder-with-rocket-and-vue\dataset";
+    let documents = load_pdfs_from_dataset(dataset_path);
+    let doc_count = documents.len();
+
+    println!("Successfully loaded {} PDF files", doc_count);
+    ```
+
+    - Build Rocket Server
+    ```rs
+    rocket::build()
+        .manage(AppState {
+            docs: RwLock::new(documents),
+            next_id: AtomicUsize::new(doc_count),
+        })
+    ```
+
+    - Routing
+    ```rs
+    .mount(
+        "/",
+        routes![
+            routes::list_docs,
+            routes::get_stats,
+            routes::search,
+        ],
+    )
+    ```
+
+    - _Attach CORS_
+    ```rs
+    .attach(cors)
+    ```
+
+- Entry Point Aplikasi
+```rs
+#[launch]
+fn rocket() -> _ {
+    build_rocket()
+}
+```
 
 ### Frontend (`./text-search-ui`)
 _Frontend_ dibangun menggunakan bahasa pemrograman Vue yang dimana terbagi menjadi 2 file, yaitu `App.vue` dan `src/HomePage.vue`. Dengan kegunaan sebagai berikut:
