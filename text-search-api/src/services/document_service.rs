@@ -46,7 +46,7 @@ fn process_pdf_file(path: &Path) -> Option<(String, String, HashMap<String, usiz
     let filename = path.file_name()?.to_str()?.to_string();
     
     println!("Loading PDF: {}", filename);
-    
+    //membaca seluruh isi file ke dalam vec<u8> sebelumnya
     let file_bytes = match fs::read(path) {
         Ok(bytes) => bytes,
         Err(e) => {
@@ -54,12 +54,12 @@ fn process_pdf_file(path: &Path) -> Option<(String, String, HashMap<String, usiz
             return None;
         }
     };
-    
+    //encode u8 jadi string dari base64
     let base64_content = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &file_bytes);
     
-    // Catch panic from pdf-extract library
+    // Catch panic dari library pdf-extract
     let content = match panic::catch_unwind(|| extract_text_from_pdf(&base64_content)) {
-        Ok(Ok(text)) => text,
+        Ok(Ok(text)) => text,//simpan dalam konten
         Ok(Err(e)) => {
             eprintln!("Warning: Failed to extract text from {}: {}", filename, e);
             eprintln!("Skipping this file...");
@@ -77,9 +77,11 @@ fn process_pdf_file(path: &Path) -> Option<(String, String, HashMap<String, usiz
         return None;
     }
     
+    //mulai menghitung kata yg sudh di normalisasi
     let word_counts = build_word_counts(&content);
     println!("Successfully loaded {} ({} words)", filename, word_counts.values().sum::<usize>());
     
+    //return
     Some((filename, content, word_counts))
 }
 
@@ -97,6 +99,7 @@ pub fn create_document(
     }
 }
 
+//menghitung statistik dokumen (kek jumlah dokumen odf, total jumlah kata, ukuran teks dll)
 pub fn calculate_doc_stats(docs: &[Document]) -> (usize, usize, usize, f64) {
     let total_docs = docs.len();
     let total_words: usize = docs
