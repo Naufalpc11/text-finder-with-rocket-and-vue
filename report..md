@@ -695,9 +695,13 @@ Folder ini berisi fungsi kecil yang sifatnya umun dan tidak masuk kategori model
     pub fn build_word_counts(text: &str) -> HashMap<String, usize> {
         tokenize(text)
             .into_iter()
-            .fold(HashMap::new(), |mut acc, word| {
-                *acc.entry(word).or_insert(0) += 1;
-                acc
+            .fold(HashMap::new(), |acc, word| {
+                let word_key = word.clone();
+                let count = acc.get(&word_key).copied().unwrap_or(0) + 1;
+                acc.into_iter()
+                    .filter(move |(k, _)| k != &word_key)
+                    .chain(std::iter::once((word, count)))
+                    .collect()
             })
     }
     ```
